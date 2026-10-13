@@ -58,6 +58,12 @@
 * Freeze its input files, full NumPy RandomState including Gaussian cache,
   dependencies, libsndfile, FFmpeg, and recorded runner environment.
 * Audio parity must be byte for byte, including intermediates and final exports.
+* The user approved initializing FFmpeg vibrato delay buffers with av_calloc;
+  use that same patched FFmpeg 8.1.3 binary for Python and C++ in CI.
+* FFmpeg source is 1041abdc962f4cc4f394aa8de9dc5236c0c3b9e7; compile it only
+  in the Windows CI job with ci/build-media.sh and ci/ffmpeg-vibrato.patch.
+* Verify repeated captures before freezing changed media dependent references;
+  keep unaffected DSP, RNG, lyrics, and profile reference hashes unchanged.
 * Never introduce numeric tolerances or weaken a failing compatibility gate.
 * Preserve floating point precision, operation order, RNG consumption, filters,
   FFT padding, resampling, container encoding, and short remainder slice merging.

@@ -5,6 +5,9 @@ if (!(Test-Path ci/dependency-hashes.json) -or !(Test-Path ci/reference-hashes.j
 $FrozenReference=Get-Content ci/reference-hashes.json -Raw | ConvertFrom-Json -AsHashtable
 $CurrentReference=Get-Content ci-output/reference-hashes.json -Raw | ConvertFrom-Json -AsHashtable
 if ($FrozenReference.Count -ne $CurrentReference.Count) { throw 'All stable reference inputs must be frozen before packaging.' }
+$FrozenDependencies=Get-Content ci/dependency-hashes.json -Raw | ConvertFrom-Json -AsHashtable
+$CurrentDependencies=(Get-Content ci-output/dependencies.json -Raw | ConvertFrom-Json -AsHashtable).hashes
+if ($FrozenDependencies.Count -ne $CurrentDependencies.Count) { throw 'The patched media build must be frozen before packaging.' }
 $Native = Get-Content ci-output/native-results.json -Raw | ConvertFrom-Json
 if ($Native.failures -ne 0 -or !$Native.byte_parity_required) { throw 'Native compatibility gate failed.' }
 $Short = $env:GITHUB_SHA.Substring(0, 12)
@@ -19,7 +22,9 @@ Copy-Item vendor/json/LICENSE.MIT "$Stage/licenses/json.txt"
 Copy-Item vendor/utf8proc/LICENSE.md "$Stage/licenses/utf8proc.txt"
 Copy-Item vendor/libsndfile/COPYING "$Stage/licenses/libsndfile.txt"
 Copy-Item vendor/pocketfft/LICENSE.md "$Stage/licenses/pocketfft.txt"
-Copy-Item vendor/ffmpeg/LICENSE.txt "$Stage/licenses/ffmpeg.txt"
+Copy-Item vendor/ffmpeg/COPYING.GPLv3 "$Stage/licenses/ffmpeg.txt"
+Copy-Item ci/ffmpeg-vibrato.patch "$Stage/licenses/ffmpeg-vibrato.patch"
+Copy-Item ci/build-media.sh "$Stage/licenses/build-media.sh"
 Copy-Item ci-output/dependencies.json "$Stage/licenses/dependencies.json"
 @'
 Bundled source and build provenance
@@ -28,9 +33,9 @@ json 3.12.0: https://github.com/nlohmann/json/tree/v3.12.0
 utf8proc 2.8.0: https://github.com/JuliaStrings/utf8proc/tree/v2.8.0
 PocketFFT: revision recorded in dependencies.json from SciPy 1.15.3
 libsndfile: SoundFile 0.13.1 Windows wheel, upstream https://github.com/libsndfile/libsndfile
-FFmpeg: https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08
-FFmpeg build recipes: https://github.com/BtbN/FFmpeg-Builds
-FFmpeg source: https://git.ffmpeg.org/ffmpeg.git at the bundled version revision
+FFmpeg 8.1.3 source: https://github.com/FFmpeg/FFmpeg/tree/1041abdc962f4cc4f394aa8de9dc5236c0c3b9e7
+FFmpeg has a one line vibrato initialization patch approved for both implementations.
+The exact patch and build recipe are included here, with MSYS2 package versions in dependencies.json.
 The complete corresponding source and build recipes must accompany any public redistribution where its license requires them.
 '@ | Set-Content "$Stage/licenses/SOURCES.txt" -Encoding utf8
 $Manifest = [ordered]@{ application='GhostWave Studio'; version='2.0.0'; commit=$env:GITHUB_SHA; architecture='x64'; minimum_windows='Windows 10 22H2'; run_id=$env:GITHUB_RUN_ID; files=@{} }

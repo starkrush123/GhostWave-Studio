@@ -1,0 +1,11 @@
+--- a/libavfilter/af_vibrato.c
++++ b/libavfilter/af_vibrato.c
+@@ -138,7 +138,7 @@ static int config_input(AVFilterLink *inlink)
+     s->channels = inlink->ch_layout.nb_channels;
+     s->buf_size = lrint(inlink->sample_rate * 0.005 + 0.5);
+     for (c = 0; c < s->channels; c++) {
+-        s->buf[c] = av_malloc_array(s->buf_size, sizeof(*s->buf[c]));
++        s->buf[c] = av_calloc(s->buf_size, sizeof(*s->buf[c]));
+         if (!s->buf[c])
+             return AVERROR(ENOMEM);
+     }

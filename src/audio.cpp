@@ -22,6 +22,7 @@ struct SoundFileApi {
     decltype(&sf_close) close = nullptr;
     decltype(&sf_readf_float) read = nullptr;
     decltype(&sf_writef_float) write = nullptr;
+    decltype(&sf_command) command = nullptr;
     decltype(&sf_strerror) error = nullptr;
     decltype(&sf_version_string) version_string = nullptr;
     SoundFileApi() {
@@ -31,9 +32,10 @@ struct SoundFileApi {
         close = reinterpret_cast<decltype(close)>(GetProcAddress(library,"sf_close"));
         read = reinterpret_cast<decltype(read)>(GetProcAddress(library,"sf_readf_float"));
         write = reinterpret_cast<decltype(write)>(GetProcAddress(library,"sf_writef_float"));
+        command = reinterpret_cast<decltype(command)>(GetProcAddress(library,"sf_command"));
         error = reinterpret_cast<decltype(error)>(GetProcAddress(library,"sf_strerror"));
         version_string = reinterpret_cast<decltype(version_string)>(GetProcAddress(library,"sf_version_string"));
-        if(!open||!close||!read||!write||!error||!version_string) { FreeLibrary(library); throw std::runtime_error("Audio library exports are incomplete"); }
+        if(!open||!close||!read||!write||!command||!error||!version_string) { FreeLibrary(library); throw std::runtime_error("Audio library exports are incomplete"); }
     }
     ~SoundFileApi() { FreeLibrary(library); }
 };
@@ -175,7 +177,11 @@ Audio pitch(Audio data,const Json& options,bool wobble,const std::atomic_bool* c
         std::string filters="rubberband=pitch="+number(std::pow(2.0,semitones/12.0),6)+":tempo="+number(tempo,6)+":formant=shifted";
         if(wobble) filters+=",vibrato=f="+number(options.value("pitch_wobble_freq",0.22),3)+":d="+number(options.value("pitch_wobble_depth",0.28),3);
         auto result=run_process({ffmpeg_path().wstring(),L"-y",L"-i",in.path.wstring(),L"-af",wide(filters),L"-ar",std::to_wstring(data.rate),out.path.wstring()},60,cancel);
-        if(result.code==0 && fs::exists(out.path)) return read_audio(out.path,0,false);
+        if(result.code==0 && fs::exists(out.path)) {
+            SF_INFO info{}; SoundFile file(out.path,SFM_READ,info);
+            if(info.frames==0&&info.channels>0&&info.samplerate>0) return Audio{info.samplerate,info.channels,{}};
+            return read_audio(out.path,0,false);
+        }
     } catch(...) { cancelled(cancel); }
     return pitch_fallback(data,semitones,tempo,cancel);
 }
@@ -200,7 +206,7 @@ uint32_t RandomState::next() {
 }
 double RandomState::uniform() { uint32_t a=next()>>5,b=next()>>6; return (a*67108864.0+b)*(1.0/9007199254740992.0); }
 double RandomState::normal() {
-    if(has_gaussian) { has_gaussian=false; return gaussian; }
+    if(has_gaussian) { auto value=gaussian; has_gaussian=false; gaussian=0.0; return value; }
     double x1,x2,r;
     do { x1=2.0*uniform()-1.0; x2=2.0*uniform()-1.0; r=x1*x1+x2*x2; } while(r>=1.0||r==0.0);
     double scale=std::sqrt(-2.0*std::log(r)/r); gaussian=scale*x1; has_gaussian=true; return scale*x2;
@@ -251,7 +257,7 @@ Audio read_audio(const fs::path& input,int target_rate,bool remove_dc) {
     if(remove_dc && result.frames()) {
         for(int c=0;c<result.channels;++c) {
             float sum=0;
-            if(result.channels==1) sum=pairwise_sum(result.samples.data(),result.frames());
+            if(result.channels==1) for(size_t i=0;i<result.frames();i+=8192) sum+=pairwise_sum(result.samples.data()+i,std::min<size_t>(8192,result.frames()-i));
             else for(size_t i=c;i<result.samples.size();i+=result.channels) sum+=result.samples[i];
             float mean=sum/static_cast<float>(result.frames());
             for(size_t i=c;i<result.samples.size();i+=result.channels) result.samples[i]-=mean;
@@ -263,6 +269,7 @@ void write_pcm(const fs::path& path,const Audio& data) {
     if(!data.frames()||data.channels<1||data.rate<1) throw std::runtime_error("Cannot write empty audio");
     SF_INFO info{}; info.samplerate=data.rate; info.channels=data.channels; info.format=SF_FORMAT_WAV|SF_FORMAT_PCM_16;
     SoundFile file(path,SFM_WRITE,info);
+    if(sound().command(file.file,SFC_SET_CLIPPING,nullptr,SF_TRUE)!=SF_TRUE) throw std::runtime_error("Cannot enable PCM clipping");
     if(sound().write(file.file,data.samples.data(),data.frames())!=static_cast<sf_count_t>(data.frames())) throw std::runtime_error("Incomplete audio write");
     if(sound().close(file.file)!=0) { file.file=nullptr; throw std::runtime_error("Cannot finish audio file"); } file.file=nullptr;
 }
@@ -331,8 +338,8 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
         assign(data,input);
     } else if(stage=="bode" || stage=="triple") {
         if(stage=="bode") {
-            auto hilbert=analytic(data.samples,n,channels); float frequency=static_cast<float>(2*pi*options.value("bode_shift_hz",8.5)),wet=0.85f;
-            for(size_t i=0;i<n;++i) { float phase=frequency*time32(i,n,static_cast<double>(n)/sr); std::complex<float> rotation(std::cos(phase),std::sin(phase)); for(int c=0;c<channels;++c) { auto k=i*channels+c; data.samples[k]=(1.0f-wet)*data.samples[k]+wet*(hilbert[k]*rotation).real(); } }
+            auto hilbert=analytic(data.samples,n,channels); float frequency=static_cast<float>(2*pi*options.value("bode_shift_hz",8.5)),wet=0.85f,dry=0.15f;
+            for(size_t i=0;i<n;++i) { float phase=frequency*time32(i,n,static_cast<double>(n)/sr); for(int c=0;c<channels;++c) { auto k=i*channels+c; float shifted=hilbert[k].real()*std::cos(phase)-hilbert[k].imag()*std::sin(phase); data.samples[k]=dry*data.samples[k]+wet*shifted; } }
         } else {
             auto bass=filter(asdouble(data),channels,bank(sr).at("bass200"));
             auto middle=analytic(filter(asdouble(data),channels,bank(sr).at("middle")),n,channels),top=analytic(filter(asdouble(data),channels,bank(sr).at("top")),n,channels);

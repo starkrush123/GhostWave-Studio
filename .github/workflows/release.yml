@@ -42,6 +42,46 @@ jobs:
           key: windows-dependency-downloads-${{ hashFiles('ci/dependencies.ps1', 'ci/oracle-requirements.txt') }}
       - name: Prepare pinned dependencies
         run: ./ci/dependencies.ps1
+      - name: Restore patched media build
+        id: media_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vendor/media/ffmpeg.exe
+            vendor/media-packages.txt
+            ci-output/media-config.log
+            ci-output/media-imports.txt
+          key: windows-media-${{ hashFiles('ci/build-media.sh', 'ci/ffmpeg-vibrato.patch', 'ci/dependencies.ps1') }}
+      - uses: msys2/setup-msys2@v2
+        if: steps.media_cache.outputs.cache-hit != 'true'
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make patch
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-rubberband
+            mingw-w64-ucrt-x86_64-lame
+            mingw-w64-ucrt-x86_64-chromaprint
+      - name: Compile patched FFmpeg
+        id: media
+        if: steps.media_cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: bash ci/build-media.sh
+      - name: Cache patched media build
+        if: steps.media.outcome == 'success' && steps.media_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vendor/media/ffmpeg.exe
+            vendor/media-packages.txt
+            ci-output/media-config.log
+            ci-output/media-imports.txt
+          key: ${{ steps.media_cache.outputs.cache-primary-key }}
+      - name: Verify dependency provenance
+        run: ./ci/record-dependencies.ps1
       - name: Capture historical reference
         run: ./ci/oracle.ps1
       - name: Identify runner image
@@ -86,6 +126,8 @@ jobs:
           name: verification-${{ github.sha }}
           path: |
             ci-output/dependencies.json
+            ci-output/media-config.log
+            ci-output/media-imports.txt
             ci-output/reference-hashes.json
             ci-output/reference-verification.json
             ci-output/reference/

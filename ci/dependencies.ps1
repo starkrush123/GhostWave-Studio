@@ -30,34 +30,9 @@ if ((git -C vendor/scipy/scipy/_lib/pocketfft rev-parse HEAD) -ne '9367142748fcc
 Copy-Item vendor/scipy/scipy/_lib/pocketfft vendor/pocketfft -Recurse
 git clone --depth 1 --branch 1.2.2 https://github.com/libsndfile/libsndfile.git vendor/libsndfile
 if ((git -C vendor/libsndfile rev-parse HEAD) -ne '72f6af15e8f85157bd622ed45b979025828b7001') { throw 'libsndfile header revision changed.' }
-$FfmpegName = 'ffmpeg-n8.1.3-9-g29e619e767-win64-gpl-8.1.zip'
-$FfmpegBase = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08'
-$Ffmpeg = Get-Archive "$FfmpegBase/$FfmpegName" $FfmpegName
-$Checksums = Get-Archive "$FfmpegBase/checksums.sha256" 'ffmpeg-checksums.sha256'
-$Expected = ((Get-Content $Checksums | Where-Object { $_ -match [regex]::Escape($FfmpegName) }) -split '\s+')[0]
-if (!$Expected -or (Get-FileHash $Ffmpeg -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Expected.ToLowerInvariant()) { throw 'FFmpeg checksum failed.' }
+$Ffmpeg = Get-Archive 'https://github.com/FFmpeg/FFmpeg/archive/1041abdc962f4cc4f394aa8de9dc5236c0c3b9e7.zip' 'ffmpeg-8.1.3-source.zip'
 Expand-Source $Ffmpeg 'vendor/ffmpeg'
-Copy-Item vendor/ffmpeg/bin/ffmpeg.exe vendor/media/ffmpeg.exe -Force
 python -m pip download --only-binary=:all: -r ci/oracle-requirements.txt -d vendor/archives/wheels
 python -m pip install --no-index --find-links vendor/archives/wheels -r ci/oracle-requirements.txt
 $Sndfile = python -c 'import soundfile; print(soundfile._full_path)'
 Copy-Item $Sndfile vendor/media/libsndfile_x64.dll -Force
-$Filters = & vendor/media/ffmpeg.exe -hide_banner -filters 2>&1 | Out-String
-$Formats = & vendor/media/ffmpeg.exe -hide_banner -formats 2>&1 | Out-String
-if ($Filters -notmatch 'rubberband' -or $Filters -notmatch 'vibrato' -or $Formats -notmatch 'chromaprint') { throw 'Required FFmpeg capabilities are missing.' }
-$Record = [ordered]@{
-    python = (python --version | Out-String).Trim()
-    cmake = (cmake --version | Select-Object -First 1)
-    pocketfft_commit = (git -C vendor/scipy/scipy/_lib/pocketfft rev-parse HEAD)
-    runner_image = $env:ImageVersion
-    runner_os = $env:RUNNER_OS
-    ffmpeg = (& vendor/media/ffmpeg.exe -version | Select-Object -First 1)
-    hashes = @{}
-}
-Get-ChildItem vendor/archives -File -Recurse | ForEach-Object { $Record.hashes[$_.Name] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
-Get-ChildItem vendor/media -File | ForEach-Object { $Record.hashes[$_.Name] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
-$Record | ConvertTo-Json -Depth 8 | Set-Content ci-output/dependencies.json -Encoding utf8
-if (Test-Path ci/dependency-hashes.json) {
-    $Frozen = Get-Content ci/dependency-hashes.json -Raw | ConvertFrom-Json -AsHashtable
-    foreach ($Name in $Frozen.Keys) { if ($Record.hashes[$Name] -ne $Frozen[$Name]) { throw "Dependency hash changed: $Name" } }
-}

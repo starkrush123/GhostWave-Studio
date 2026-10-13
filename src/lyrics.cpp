@@ -30,7 +30,7 @@ std::string encode(const Text& text) {
     }
     return result;
 }
-Text lower(Text text) { for (auto& c : text) c = utf8proc_tolower(c); return text; }
+Text lower(Text text) { Text result; for(auto c:text) { result+=utf8proc_tolower(c); if(c==0x130) result+=0x307; } return result; }
 Text upper(Text text) { for (auto& c : text) c = utf8proc_toupper(c); return text; }
 bool space(char32_t c) {
     auto category = utf8proc_category(c);
@@ -159,9 +159,13 @@ int line_syllables(const Text& text) {
     auto value = trim(text);
     if (value.empty() || value.front() == '[') return 0;
     int count = 0;
-    wxString input = wxString::FromUTF8(encode(value));
-    wxRegEx regex(R"(\b[a-zA-Z']+\b)");
-    while (regex.Matches(input)) { size_t start, length; regex.GetMatch(&start, &length); count += count_syllables(regex.GetMatch(input).ToStdString(wxConvUTF8)); input = input.Mid(start + length); }
+    auto ascii=[](char32_t c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='\'';};
+    for(size_t i=0;i<value.size();) {
+        if(!ascii(value[i])||!word(value[i])||(i&&word(value[i-1]))) { ++i; continue; }
+        size_t start=i; while(i<value.size()&&ascii(value[i])) ++i;
+        size_t end=i; while(end>start&&!word(value[end-1])) --end;
+        if(end>start&&(end==value.size()||!word(value[end]))) count+=count_syllables(encode(value.substr(start,end-start)));
+    }
     return count;
 }
 }
@@ -240,7 +244,8 @@ std::string syllabify_lines(const std::string& input) {
     return encode(join(output));
 }
 Json audit_lyrics(const std::string& original, const std::string& result) {
-    auto a = tokens(lower(decode(original))), b = tokens(lower(decode(result)));
+    auto a = tokens(decode(original)), b = tokens(decode(result));
+    for(auto& token:a) token=lower(token); for(auto& token:b) token=lower(token);
     auto grams = [](const std::vector<Text>& words) { std::set<Text> result; for (size_t i = 0; i + 3 < words.size(); ++i) result.insert(words[i] + U" " + words[i+1] + U" " + words[i+2] + U" " + words[i+3]); return result; };
     auto ga = grams(a), gb = grams(b);
     size_t matches = 0; for (const auto& g : ga) matches += gb.count(g);
