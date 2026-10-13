@@ -71,6 +71,7 @@ class Frame : public wxFrame {
     std::unique_ptr<Job> job;
     std::function<void(Job&)> finish;
     bool closing=false;
+    int last_progress=-1;
     std::vector<std::string> preset_names={"Complete Sanitization (Recommended)","Balanced Audio Quality","Room Acoustic Simulation","Frequency & Phase Shift","Vocal Reduction Only","Cloud API Stem Separation"};
     void report_error(const std::string& error) { wxMessageBox(wxString::FromUTF8(error),t("error"),wxOK|wxICON_ERROR,this); }
     void state(bool busy) {
@@ -80,13 +81,14 @@ class Frame : public wxFrame {
     }
     void start(std::function<void(Job&)> task,std::function<void(Job&)> completion={}) {
         if(job) return;
-        job=std::make_unique<Job>(); finish=std::move(completion); state(true); gauge->SetValue(0); status->SetLabel(t("working"));
+        job=std::make_unique<Job>(); finish=std::move(completion); state(true); last_progress=-1; gauge->SetValue(0); status->SetLabel(t("working"));
         auto current=job.get();
         worker=std::thread([current,task=std::move(task)] { try { task(*current); } catch(const std::exception& error) { current->error=error.what(); } catch(...) { current->error="Processing failed."; } current->done.store(true); });
     }
     void tick(wxTimerEvent&) {
         if(!job) return;
-        { std::lock_guard<std::mutex> lock(job->mutex); gauge->SetValue(std::clamp(job->percent,0,100)); }
+        { std::lock_guard<std::mutex> lock(job->mutex); int percent=std::clamp(job->percent,0,100); gauge->SetValue(percent);
+          if(percent/5!=last_progress/5) { auto message=t("working"); if(message.EndsWith(".")) message.RemoveLast(); status->SetLabel(wxString::Format("%s %d%%.",message,percent)); last_progress=percent; wxAccessible::NotifyEvent(wxACC_EVENT_OBJECT_NAMECHANGE,status,wxOBJID_CLIENT,0); } }
         if(!job->done.load()) return;
         worker.join(); auto complete=std::move(job); auto callback=std::move(finish); state(false);
         if(closing) { Close(); return; }
@@ -160,16 +162,20 @@ class Frame : public wxFrame {
         if(dialog.ShowModal()==wxID_OK) { for(const auto& check:checks) profile.data[check.first]=check.second->GetValue(); for(const auto& number:numbers) profile.data[number.first]=number.second->GetValue(); profile.save(); }
     }
     void credentials(bool lyrics) {
-        wxDialog dialog(this,wxID_ANY,t(lyrics?"lyrics_settings":"stem_settings"),wxDefaultPosition,wxSize(490,430),wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
+        wxDialog dialog(this,wxID_ANY,t(lyrics?"lyrics_settings":"stem_settings"),wxDefaultPosition,wxSize(490,500),wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
         auto sizer=new wxBoxSizer(wxVERTICAL); std::string prefix=lyrics?"lyrics_cloud_":"cloud_";
         sizer->Add(new wxStaticText(&dialog,wxID_ANY,t("provider")),0,wxALL,4);
         wxArrayString choices=lyrics?wxArrayString{"groq","openrouter","openai","custom"}:wxArrayString{"replicate","huggingface","custom"};
         auto provider=new wxChoice(&dialog,wxID_ANY,wxDefaultPosition,wxDefaultSize,choices); provider->SetStringSelection(wxString::FromUTF8(profile.data[prefix+"provider"].get<std::string>())); named(provider,t("provider")); sizer->Add(provider,0,wxEXPAND|wxALL,4);
         auto token=field(&dialog,sizer,"token",wxString::FromUTF8(profile.data[prefix+"api_token"].get<std::string>()),wxTE_PASSWORD);
+        auto reveal=new wxCheckBox(&dialog,wxID_ANY,t("show_token")); named(reveal,t("show_token")); sizer->Add(reveal,0,wxBOTTOM,8);
+        reveal->Bind(wxEVT_CHECKBOX,[token](wxCommandEvent& event) { SendMessageW(reinterpret_cast<HWND>(token->GetHandle()),EM_SETPASSWORDCHAR,event.IsChecked()?0:L'*',0); });
         auto endpoint=field(&dialog,sizer,"endpoint",wxString::FromUTF8(profile.data[prefix+"endpoint_url"].get<std::string>()));
         auto model=field(&dialog,sizer,"model",wxString::FromUTF8(profile.data[prefix+(lyrics?"model":"model_version")].get<std::string>()));
+        wxSpinCtrl* timeout=nullptr;
+        if(!lyrics) { sizer->Add(new wxStaticText(&dialog,wxID_ANY,t("timeout")),0,wxBOTTOM,4); timeout=new wxSpinCtrl(&dialog,wxID_ANY,{},wxDefaultPosition,wxDefaultSize,wxSP_ARROW_KEYS,1,600,profile.data["cloud_timeout_seconds"].get<int>()); named(timeout,t("timeout")); sizer->Add(timeout,0,wxEXPAND|wxBOTTOM,8); }
         auto row=new wxBoxSizer(wxHORIZONTAL); button(&dialog,row,"save",wxID_OK); button(&dialog,row,"cancel",wxID_CANCEL); sizer->Add(row,0,wxALIGN_RIGHT); dialog.SetSizer(sizer);
-        if(dialog.ShowModal()==wxID_OK) { profile.data[prefix+"provider"]=provider->GetStringSelection().ToStdString(wxConvUTF8); profile.data[prefix+"api_token"]=text(token); profile.data[prefix+"endpoint_url"]=text(endpoint); profile.data[prefix+(lyrics?"model":"model_version")]=text(model); profile.save(); }
+        if(dialog.ShowModal()==wxID_OK) { profile.data[prefix+"provider"]=provider->GetStringSelection().ToStdString(wxConvUTF8); profile.data[prefix+"api_token"]=text(token); profile.data[prefix+"endpoint_url"]=text(endpoint); profile.data[prefix+(lyrics?"model":"model_version")]=text(model); if(timeout)profile.data["cloud_timeout_seconds"]=timeout->GetValue(); profile.save(); }
     }
     void blacklist() {
         wxDialog dialog(this,wxID_ANY,t("blacklist"),wxDefaultPosition,wxSize(460,440),wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
@@ -202,10 +208,10 @@ class Frame : public wxFrame {
             });
         }
     }
-    void update() {
-        start([](Job& job) { job.json=check_update(http,&job.cancel); },[this](Job& job) {
-            if(!job.json["error_message"].get<std::string>().empty()) { report_error(job.json["error_message"]); return; }
-            if(!job.json["has_update"].get<bool>()) { wxMessageBox(t("up_to_date"),t("updates"),wxOK,this); return; }
+    void update(bool quiet=false) {
+        start([](Job& job) { job.json=check_update(http,&job.cancel); },[this,quiet](Job& job) {
+            if(!job.json["error_message"].get<std::string>().empty()) { if(!quiet)report_error(job.json["error_message"]); return; }
+            if(!job.json["has_update"].get<bool>()) { if(!quiet)wxMessageBox(t("up_to_date"),t("updates"),wxOK,this); return; }
             read_dialog(this,"changelog",job.json.value("release_notes",std::string()));
             if(wxMessageBox(t("update_prompt"),t("updates"),wxYES_NO|wxICON_QUESTION,this)!=wxYES) return;
             auto info=job.json;
@@ -213,6 +219,12 @@ class Frame : public wxFrame {
         });
     }
     void menu(int id,const std::function<void()>& action) { Bind(wxEVT_MENU,[this,action](wxCommandEvent&) { if(job) return; try { action(); } catch(const std::exception& error) { report_error(error.what()); } },id); }
+    void change_language(const char* language) {
+        sync(); profile.data["language"]=language; profile.save(); catalog=read_json(app_dir()/fs::u8path(std::string("resources/ui-")+language+".json"));
+        auto replacement=new Frame(profile); replacement->input->SetValue(input->GetValue()); replacement->output->SetValue(output->GetValue());
+        replacement->lyrics_input->SetValue(lyrics_input->GetValue()); replacement->lyrics_output->SetValue(lyrics_output->GetValue()); replacement->tabs->SetSelection(tabs->GetSelection());
+        replacement->Show(); wxTheApp->SetTopWindow(replacement); Destroy();
+    }
 public:
     explicit Frame(Profile cfg):wxFrame(nullptr,wxID_ANY,"GhostWave Studio",wxDefaultPosition,wxSize(780,600)),profile(std::move(cfg)),timer(this) {
         SetMinSize(wxSize(600,460)); named(this,"GhostWave Studio");
@@ -247,7 +259,7 @@ public:
         Bind(wxEVT_CHAR_HOOK,[this](wxKeyEvent& event){if(event.GetKeyCode()==WXK_ESCAPE&&job)job->cancel=true;else event.Skip();});
         wxAcceleratorEntry accelerators[1]; accelerators[0].Set(wxACCEL_CTRL,WXK_RETURN,Process); SetAcceleratorTable(wxAcceleratorTable(1,accelerators));
         menu(Process,[this]{process();}); menu(OpenAudio,[this]{open_audio();}); menu(wxID_EXIT,[this]{Close();}); menu(Advanced,[this]{advanced();}); menu(StemSettings,[this]{credentials(false);}); menu(LyricsSettings,[this]{credentials(true);}); menu(Blacklist,[this]{blacklist();}); menu(Support,[this]{tickets();}); menu(Updates,[this]{update();});
-        menu(English,[this]{profile.data["language"]="en";profile.save();wxMessageBox(t("language_saved"),t("language"),wxOK,this);}); menu(Indonesian,[this]{profile.data["language"]="id";profile.save();wxMessageBox(t("language_saved"),t("language"),wxOK,this);});
+        menu(English,[this]{change_language("en");}); menu(Indonesian,[this]{change_language("id");});
         menu(Guide,[this]{read_dialog(this,"guide",t("guide_text").ToStdString(wxConvUTF8));}); menu(Protocol,[this]{read_dialog(this,"protocol",t("protocol_text").ToStdString(wxConvUTF8));}); menu(About,[this]{read_dialog(this,"about",std::string("GhostWave Studio ")+version+"\n\n"+t("about_text").ToStdString(wxConvUTF8));});
         menu(Changelog,[this]{start([](Job& job){job.output=changelog(true,http,&job.cancel);},[this](Job& job){read_dialog(this,"changelog",job.output);});});
         menu(ExportProfile,[this]{sync();wxFileDialog dialog(this,t("export_profile"),{},"ghostwave.sn","Profiles (*.sn)|*.sn",wxFD_SAVE|wxFD_OVERWRITE_PROMPT);if(dialog.ShowModal()==wxID_OK)profile.save(fs::path(dialog.GetPath().ToStdWstring()));});
@@ -260,6 +272,7 @@ public:
         if(profile.recovered) wxMessageBox(t("recovered"),t("import_profile"),wxOK|wxICON_INFORMATION,this);
     }
     ~Frame() override { timer.Stop();if(job)job->cancel=true;if(worker.joinable())worker.join(); }
+    void startup() { if(profile.data["check_updates_on_startup"].get<bool>()) update(true); }
     void open_audio() { if(job)return;wxFileDialog dialog(this,t("open_audio"),{},{} ,"Audio files|*.wav;*.mp3;*.flac;*.ogg;*.m4a;*.aac;*.wma|All files|*.*",wxFD_OPEN|wxFD_FILE_MUST_EXIST);if(dialog.ShowModal()==wxID_OK)set_audio(dialog.GetPath()); }
     void set_audio(const wxString& path) { input->SetValue(path);output->Clear();tabs->SetSelection(0);auto file=fs::path(path.ToStdWstring());start([file](Job& job){job.json=inspect_audio(file);},[this](Job& job){status->SetLabel(wxString::Format("%.1f s, %d Hz, %d",job.json["duration_seconds"].get<double>(),job.json["sample_rate"].get<int>(),job.json["channels"].get<int>()));}); }
 };
@@ -276,7 +289,7 @@ public:
                 if(dialog.ShowModal()==wxID_OK) { lang=dialog.GetSelection()==1?"id":"en";profile.data["language"]=lang;catalog=read_json(app_dir()/fs::u8path("resources/ui-"+lang+".json")); }
                 profile.data["first_run"]=false; if(!profile.recovered)profile.save();
             }
-            auto frame=new Frame(std::move(profile));frame->Show();SetTopWindow(frame);return true;
+            auto frame=new Frame(std::move(profile));frame->Show();SetTopWindow(frame);frame->startup();return true;
         } catch(const std::exception& error) { wxMessageBox(wxString::FromUTF8(error.what()),"GhostWave Studio",wxOK|wxICON_ERROR);return false; }
     }
 };

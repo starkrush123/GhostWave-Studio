@@ -165,7 +165,10 @@ Json check_update(Transport transport,const std::atomic_bool* cancel) {
             std::string name=asset.at("name"),url=asset.at("browser_download_url");
             if(url.rfind(std::string("https://github.com/")+repository+"/releases/download/",0)!=0) continue;
             if(name.rfind("GhostWaveStudio-",0)==0&&name.find("win64")!=std::string::npos&&name.size()>13&&name.substr(name.size()-13)=="-Portable.zip") { result["asset_name"]=name; result["download_url"]=url; result["asset_size"]=asset.at("size"); }
-            if(name.size()>7&&name.substr(name.size()-7)==".sha256") result["checksum_url"]=url;
+        }
+        if(result.contains("asset_name")) for(const auto& asset:response.at("assets")) if(asset.at("name")==result.at("asset_name").get<std::string>()+".sha256") {
+            auto url=asset.at("browser_download_url").get<std::string>();
+            if(url.rfind(std::string("https://github.com/")+repository+"/releases/download/",0)==0) result["checksum_url"]=url;
         }
         result["has_update"]=result.contains("download_url")&&result.contains("checksum_url");
     } catch(const std::exception& error) { cancelled(cancel); result["error_message"]=error.what(); }
