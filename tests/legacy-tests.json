@@ -1,54 +1,262 @@
 [
-  "test_magic_header_present",
-  "test_no_plaintext_leakage",
-  "test_save_and_load_roundtrip",
-  "test_tampered_file_rejected",
-  "test_invalid_header_rejected",
-  "test_syllable_counter",
-  "test_line_syllables",
-  "test_celebrity_filter",
-  "test_profanity_filter",
-  "test_unicode_normalization",
-  "test_structural_tag_formatting",
-  "test_lyrics_cloaking_hybrid",
-  "test_lyrics_cloaking_phonetic",
-  "test_lyrics_scramble_preserves_words",
-  "test_lyrics_multilingual_indonesian",
-  "test_lyrics_multilingual_spanish",
-  "test_audit_function",
-  "test_slicer_creates_chunks",
-  "test_micro_chrono_jitter",
-  "test_bode_frequency_shifter",
-  "test_center_vocal_cut_bass_retention",
-  "test_schroeder_phase_dispersion",
-  "test_harmonic_drone_bed",
-  "test_normalize_version",
-  "test_compare_versions",
-  "test_parse_changelog_text",
-  "test_update_info_model",
-  "test_update_dialog_accessibility_and_toggle",
-  "test_update_download_dialog_accessibility",
-  "test_trimmer_disabled_by_default",
-  "test_gui_advanced_settings_toggle_and_trimmer_default",
-  "test_gui_lyrics_sanitizer_panel_and_main_frame_instantiation",
-  "test_dsp_filter_caching",
-  "test_fast_fft_padding_in_bode_shifter",
-  "test_adversarial_peaks_vectorized",
-  "test_single_pass_regex_blacklist",
-  "test_cooperative_cancellation",
-  "test_soft_limiter_prevents_clipping",
-  "test_zero_byte_file_protection",
-  "test_dc_offset_removal",
-  "test_zero_jitter_and_dispersion_guards",
-  "test_syllabify_lines_batch",
-  "test_changelog_has_no_download_urls",
-  "test_readme_txt_pure_plain_text",
-  "test_readme_id_txt_pure_plain_text",
-  "test_i18n_catalogs_and_switching",
-  "test_support_client_diagnostics",
-  "test_config_manager_v1_6_2",
-  "test_changelog_caching_and_clean_title",
-  "test_accessibility_guide_and_about_dialogs_structure",
-  "test_v1_6_1_dialog_and_tooltip_translations",
-  "test_v1_6_2_bugfixes"
+  {
+    "legacy": "test_magic_header_present",
+    "native": "profile compatibility",
+    "evidence": "Legacy encrypted profile, native roundtrip, tampering, backup recovery and preservation."
+  },
+  {
+    "legacy": "test_no_plaintext_leakage",
+    "native": "profile compatibility",
+    "evidence": "Legacy encrypted profile, native roundtrip, tampering, backup recovery and preservation."
+  },
+  {
+    "legacy": "test_save_and_load_roundtrip",
+    "native": "profile compatibility",
+    "evidence": "Legacy encrypted profile, native roundtrip, tampering, backup recovery and preservation."
+  },
+  {
+    "legacy": "test_tampered_file_rejected",
+    "native": "profile compatibility",
+    "evidence": "Legacy encrypted profile, native roundtrip, tampering, backup recovery and preservation."
+  },
+  {
+    "legacy": "test_invalid_header_rejected",
+    "native": "profile compatibility",
+    "evidence": "Legacy encrypted profile, native roundtrip, tampering, backup recovery and preservation."
+  },
+  {
+    "legacy": "test_syllable_counter",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_line_syllables",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_celebrity_filter",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_profanity_filter",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_unicode_normalization",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_structural_tag_formatting",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_lyrics_cloaking_hybrid",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_lyrics_cloaking_phonetic",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_lyrics_scramble_preserves_words",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_lyrics_multilingual_indonesian",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_lyrics_multilingual_spanish",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_audit_function",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_slicer_creates_chunks",
+    "native": "slicing compatibility",
+    "evidence": "Identical WAV slices and short remainder merge."
+  },
+  {
+    "legacy": "test_micro_chrono_jitter",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_bode_frequency_shifter",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_center_vocal_cut_bass_retention",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_schroeder_phase_dispersion",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_harmonic_drone_bed",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_normalize_version",
+    "native": "updater and changelog",
+    "evidence": "Version ordering, parsed fields, published release filtering and offline cache."
+  },
+  {
+    "legacy": "test_compare_versions",
+    "native": "updater and changelog",
+    "evidence": "Version ordering, parsed fields, published release filtering and offline cache."
+  },
+  {
+    "legacy": "test_parse_changelog_text",
+    "native": "updater and changelog",
+    "evidence": "Version ordering, parsed fields, published release filtering and offline cache."
+  },
+  {
+    "legacy": "test_update_info_model",
+    "native": "updater and changelog",
+    "evidence": "Version ordering, parsed fields, published release filtering and offline cache."
+  },
+  {
+    "legacy": "test_update_dialog_accessibility_and_toggle",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_update_download_dialog_accessibility",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_trimmer_disabled_by_default",
+    "native": "export and boundaries",
+    "evidence": "Historical presets plus explicit trimming and cancellation tests."
+  },
+  {
+    "legacy": "test_gui_advanced_settings_toggle_and_trimmer_default",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_gui_lyrics_sanitizer_panel_and_main_frame_instantiation",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_dsp_filter_caching",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_fast_fft_padding_in_bode_shifter",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_adversarial_peaks_vectorized",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_single_pass_regex_blacklist",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_cooperative_cancellation",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_soft_limiter_prevents_clipping",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_zero_byte_file_protection",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_dc_offset_removal",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_zero_jitter_and_dispersion_guards",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  },
+  {
+    "legacy": "test_syllabify_lines_batch",
+    "native": "lyrics and syllables",
+    "evidence": "Historical corpus output, statistics, audit and dictionary comparisons."
+  },
+  {
+    "legacy": "test_changelog_has_no_download_urls",
+    "native": "ci/source-check.ps1",
+    "evidence": "Plain text documentation and changelog content."
+  },
+  {
+    "legacy": "test_readme_txt_pure_plain_text",
+    "native": "ci/source-check.ps1",
+    "evidence": "Plain text documentation and changelog content."
+  },
+  {
+    "legacy": "test_readme_id_txt_pure_plain_text",
+    "native": "ci/source-check.ps1",
+    "evidence": "Plain text documentation and changelog content."
+  },
+  {
+    "legacy": "test_i18n_catalogs_and_switching",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_support_client_diagnostics",
+    "native": "cloud and support contracts",
+    "evidence": "Mock ticket creation, saved credentials, authenticated fetch and reply, secret free diagnostics."
+  },
+  {
+    "legacy": "test_config_manager_v1_6_2",
+    "native": "profile compatibility",
+    "evidence": "Legacy encrypted profile, native roundtrip, tampering, backup recovery and preservation."
+  },
+  {
+    "legacy": "test_changelog_caching_and_clean_title",
+    "native": "updater and changelog",
+    "evidence": "Version ordering, parsed fields, published release filtering and offline cache."
+  },
+  {
+    "legacy": "test_accessibility_guide_and_about_dialogs_structure",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_v1_6_1_dialog_and_tooltip_translations",
+    "native": "ci/ui-smoke.ps1",
+    "evidence": "Native control roles, keyboard focus and dialogs; manual screen reader use remains pending."
+  },
+  {
+    "legacy": "test_v1_6_2_bugfixes",
+    "native": "audio stages and boundaries",
+    "evidence": "Stage bytes across mono, stereo, silence, short inputs, odd FFT sizes and lower sample rates; cancellation and invalid inputs."
+  }
 ]

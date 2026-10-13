@@ -26,8 +26,10 @@ Expand-Source $Unicode 'vendor/utf8proc'
 git clone --depth 1 --branch v1.15.3 --filter=blob:none --sparse https://github.com/scipy/scipy.git vendor/scipy
 git -C vendor/scipy sparse-checkout set scipy/_lib
 git -C vendor/scipy submodule update --init --depth 1 scipy/_lib/pocketfft
+if ((git -C vendor/scipy/scipy/_lib/pocketfft rev-parse HEAD) -ne '9367142748fcc9696a1c9e5a99b76ed9897c9daa') { throw 'PocketFFT source revision changed.' }
 Copy-Item vendor/scipy/scipy/_lib/pocketfft vendor/pocketfft -Recurse
 git clone --depth 1 --branch 1.2.2 https://github.com/libsndfile/libsndfile.git vendor/libsndfile
+if ((git -C vendor/libsndfile rev-parse HEAD) -ne '72f6af15e8f85157bd622ed45b979025828b7001') { throw 'libsndfile header revision changed.' }
 $FfmpegName = 'ffmpeg-n8.1.3-9-g29e619e767-win64-gpl-8.1.zip'
 $FfmpegBase = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08'
 $Ffmpeg = Get-Archive "$FfmpegBase/$FfmpegName" $FfmpegName

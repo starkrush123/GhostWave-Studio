@@ -2,6 +2,9 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Packaging is allowed only in GitHub Actions.' }
 if (!(Test-Path ci/dependency-hashes.json) -or !(Test-Path ci/reference-hashes.json)) { throw 'Freeze the first verified dependency and reference captures before creating a draft release.' }
+$FrozenReference=Get-Content ci/reference-hashes.json -Raw | ConvertFrom-Json -AsHashtable
+$CurrentReference=Get-Content ci-output/reference-hashes.json -Raw | ConvertFrom-Json -AsHashtable
+if ($FrozenReference.Count -ne $CurrentReference.Count) { throw 'All stable reference inputs must be frozen before packaging.' }
 $Native = Get-Content ci-output/native-results.json -Raw | ConvertFrom-Json
 if ($Native.failures -ne 0 -or !$Native.byte_parity_required) { throw 'Native compatibility gate failed.' }
 $Short = $env:GITHUB_SHA.Substring(0, 12)

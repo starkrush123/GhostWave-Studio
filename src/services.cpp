@@ -145,7 +145,7 @@ Json parse_changelog(const std::string& text) {
     Json result={{"version",""},{"date",""},{"installer_url",""},{"portable_url",""},{"notes",""}};
     std::istringstream stream(text); std::string line,notes; bool collecting=false;
     while(std::getline(stream,line)) {
-        auto value=trim(line),low=lowered(value),colon=value.find(':');
+        auto value=trim(line),low=lowered(value); auto colon=value.find(':');
         if(low.rfind("version:",0)==0) result["version"]=trim(value.substr(colon+1));
         else if(low.rfind("date:",0)==0||low.rfind("release date:",0)==0) result["date"]=trim(value.substr(colon+1));
         else if(low.rfind("portable:",0)==0) result["portable_url"]=trim(value.substr(colon+1));

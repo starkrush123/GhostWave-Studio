@@ -31,8 +31,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Reject tracked downloads
-        run: |
-          if (git ls-files installer/) { throw 'installer/ must never be tracked.' }
+        run: ./ci/source-check.ps1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.10'
@@ -45,7 +44,19 @@ jobs:
         run: ./ci/dependencies.ps1
       - name: Capture historical reference
         run: ./ci/oracle.ps1
+      - name: Identify runner image
+        id: image
+        run: '"version=$env:ImageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8'
+      - name: Restore native dependency build
+        id: native_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vendor/wxWidgets
+            build
+          key: windows-native-${{ steps.image.outputs.version }}-${{ hashFiles('CMakeLists.txt', 'ci/dependencies.ps1') }}
       - name: Configure native application
+        id: configure
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
       - name: Compile native application
         run: cmake --build build --config Release --parallel 4
@@ -74,3 +85,11 @@ jobs:
             build/Testing/Temporary/LastTest.log
           retention-days: 30
           if-no-files-found: warn
+      - name: Cache native dependency build
+        if: always() && steps.configure.outcome == 'success' && steps.native_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vendor/wxWidgets
+            build
+          key: ${{ steps.native_cache.outputs.cache-primary-key }}

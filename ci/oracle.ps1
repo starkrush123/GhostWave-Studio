@@ -28,6 +28,12 @@ def reset():
     np.random.seed(73129)
     np.random.normal()
     return state()
+def float_fixture(path, data, rate):
+    channels = 1 if data.ndim == 1 else data.shape[1]
+    with sf.SoundFile(path, mode='w', samplerate=rate, channels=channels, subtype='FLOAT') as stream:
+        if sf._snd.sf_command(stream._file, 0x1050, sf._ffi.NULL, 0) != 0:
+            raise RuntimeError('PEAK timestamps could not be disabled')
+        stream.write(data)
 save_json('environment.json',dict(python=platform.python_version(),numpy=np.__version__,scipy=scipy.__version__,soundfile=sf.__version__,libsndfile=sf.__libsndfile_version__,unicode=__import__('unicodedata').unidata_version,platform=platform.platform(),cpu_features=np._core._multiarray_umath.__cpu_features__,disabled=os.environ.get('NPY_DISABLE_CPU_FEATURES')))
 coefficients = {}
 for rate in (1000,8000,22050,44100,48000):
@@ -63,7 +69,7 @@ for label,channels,length,rate in (('mono',1,44117,44100),('stereo',2,44117,4410
     if label=='silence': data*=0
     if channels==2: data=np.column_stack([data,np.roll(data,17)*np.float32(.7)])
     data.astype('<f4').tofile(ref/(label+'.bin'))
-    sf.write(ref/(label+'.wav'),data,rate,subtype='FLOAT')
+    float_fixture(ref/(label+'.wav'),data,rate)
     loaded,loaded_rate=ap.load_audio_samples(str(ref/(label+'.wav')))
     loaded.astype('<f4').tofile(ref/(label+'.loaded.bin'))
     audio_cases.append(dict(name=label+'.load',stage='load',input=label+'.wav',output=label+'.loaded.bin',rate=loaded_rate,channels=channels))
@@ -105,7 +111,7 @@ for index in range(6):
         if not result.success: raise RuntimeError(result.error_message)
         pipeline.append(dict(input='stereo.wav',output=name,options=dataclasses.asdict(options),random_state=before,expected_random_state=state()))
 frame.Destroy()
-sf.write(ref/'slice-source.wav',np.tile(np.array([.1,-.1],dtype=np.float32),int(44100*7.25)),44100,subtype='FLOAT')
+float_fixture(ref/'slice-source.wav',np.tile(np.array([.1,-.1],dtype=np.float32),int(44100*7.25)),44100)
 parts=ap.slice_audio_for_suno(str(ref/'slice-source.wav'),str(ref/'slices'),3.5)
 save_json('slices.json',[pathlib.Path(p).name for p in parts])
 save_json('pipeline.json',pipeline)

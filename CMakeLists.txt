@@ -12,7 +12,11 @@ set(wxBUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(wxBUILD_SAMPLES OFF CACHE BOOL "" FORCE)
 set(wxBUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(wxBUILD_PRECOMP OFF CACHE BOOL "" FORCE)
+set(wxBUILD_USE_STATIC_RUNTIME ON CACHE BOOL "" FORCE)
 set(wxUSE_ACCESSIBILITY ON CACHE BOOL "" FORCE)
+foreach(component HTML XRC AUI PROPGRID RIBBON STC MEDIACTRL RICHTEXT WEBVIEW)
+  set(wxUSE_${component} OFF CACHE BOOL "" FORCE)
+endforeach()
 add_subdirectory(vendor/wxWidgets EXCLUDE_FROM_ALL)
 set(UTF8PROC_INSTALL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -34,10 +38,10 @@ target_link_libraries(ghostwave-tests PRIVATE ghostwave_core)
 target_compile_options(ghostwave-tests PRIVATE /W4 /utf-8 /fp:strict /EHsc)
 add_test(NAME core COMMAND ghostwave-tests "${CMAKE_SOURCE_DIR}/ci-output/reference")
 set_tests_properties(core PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/Release")
-foreach(target GhostWaveStudio ghostwave-cli ghostwave-tests)
-  add_custom_command(TARGET ${target} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/resources" "$<TARGET_FILE_DIR:${target}>/resources"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/locales" "$<TARGET_FILE_DIR:${target}>/locales"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/vendor/media/ffmpeg.exe" "$<TARGET_FILE_DIR:${target}>/ffmpeg.exe"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/vendor/media/libsndfile_x64.dll" "$<TARGET_FILE_DIR:${target}>/libsndfile_x64.dll")
-endforeach()
+add_dependencies(ghostwave-cli GhostWaveStudio)
+add_dependencies(ghostwave-tests GhostWaveStudio)
+  add_custom_command(TARGET GhostWaveStudio POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/resources" "$<TARGET_FILE_DIR:GhostWaveStudio>/resources"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/locales" "$<TARGET_FILE_DIR:GhostWaveStudio>/locales"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/vendor/media/ffmpeg.exe" "$<TARGET_FILE_DIR:GhostWaveStudio>/ffmpeg.exe"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/vendor/media/libsndfile_x64.dll" "$<TARGET_FILE_DIR:GhostWaveStudio>/libsndfile_x64.dll")

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 
 using namespace gw;

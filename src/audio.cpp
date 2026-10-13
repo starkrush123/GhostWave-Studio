@@ -101,7 +101,7 @@ float time32(size_t i,size_t n,double end,bool endpoint=false,double start=0) {
     return static_cast<float>(static_cast<double>(i)*step+start);
 }
 std::vector<double> asdouble(const Audio& data) { return {data.samples.begin(),data.samples.end()}; }
-std::vector<double> filter(std::vector<double> data,int channels,const Json& sos) {
+std::vector<double> filter(std::vector<double> data,int channels,const Json& sos,bool direct=false) {
     for(const auto& row:sos) {
         const auto coefficients=row.get<std::vector<double>>();
         if(coefficients.size()!=6 || coefficients[3]!=1.0) throw std::runtime_error("Invalid filter coefficients");
@@ -109,7 +109,7 @@ std::vector<double> filter(std::vector<double> data,int channels,const Json& sos
             double z1=0,z2=0;
             for(size_t i=c;i<data.size();i+=channels) {
                 double x=data[i],y=coefficients[0]*x+z1;
-                z1=coefficients[1]*x-coefficients[4]*y+z2;
+                z1=direct ? (z2+x*coefficients[1])-y*coefficients[4] : coefficients[1]*x-coefficients[4]*y+z2;
                 z2=coefficients[2]*x-coefficients[5]*y;
                 data[i]=y;
             }
@@ -369,7 +369,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
             for(size_t i=0;i<n;++i) { const auto index=i+1024; data.samples[i*channels+c]=out[index]/(norm[index]>1e-10f?norm[index]:1.0f); }
         }
     } else if(stage=="phase") {
-        assign(data,filter(asdouble(data),channels,bank(sr).at("phase")));
+        assign(data,filter(asdouble(data),channels,bank(sr).at("phase"),true));
     } else if(stage=="bed") {
         std::vector<float> drone(n);
         for(size_t i=0;i<n;++i) { float t=time32(i,n,static_cast<double>(n)/sr); drone[i]=static_cast<float>(options.value("drone_bed_volume",0.035))*(0.45f*std::sin(static_cast<float>(2*pi*110)*t)+0.35f*std::sin(static_cast<float>(2*pi*164.81)*t)+0.20f*std::sin(static_cast<float>(2*pi*220)*t)); }
@@ -392,7 +392,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
         for(const auto& reflection:{std::pair{0.016,0.45}, {0.027,-0.34}, {0.041,0.28}, {0.059,-0.21}}) { size_t index=static_cast<size_t>(reflection.first*sr); if(index<length) impulse[index]=static_cast<float>(reflection.second); }
         std::vector<double> diffuse(length);
         for(size_t i=0;i<length;++i) diffuse[i]=static_cast<float>(0.08*random.normal())*std::exp(-(static_cast<double>(i)*0.25/length)/0.35);
-        diffuse=filter(std::move(diffuse),1,bank(sr).at("air"));
+        diffuse=filter(std::move(diffuse),1,bank(sr).at("air"),true);
         double peak=0; for(size_t i=0;i<length;++i) { impulse[i]+=diffuse[i]; peak=std::max(peak,std::abs(impulse[i])); }
         for(auto& value:impulse) value/=peak+1e-6;
         std::vector<float> sat=data.samples; for(auto& value:sat) value=std::tanh(value*1.25f)/1.25f;
