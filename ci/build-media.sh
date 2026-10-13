@@ -2,7 +2,8 @@
 set -euo pipefail
 test "${GITHUB_ACTIONS:-}" = true || { printf '%s\n' 'Media compilation is allowed only in GitHub Actions.' >&2; exit 1; }
 task_root="$PWD"
-test "$(pacman -Q mingw-w64-ucrt-x86_64-rubberband)" = 'mingw-w64-ucrt-x86_64-rubberband 3.3.0-1'
+pacman -Q mingw-w64-ucrt-x86_64-rubberband mingw-w64-ucrt-x86_64-lame mingw-w64-ucrt-x86_64-chromaprint
+test "$(pacman -Q mingw-w64-ucrt-x86_64-rubberband)" = 'mingw-w64-ucrt-x86_64-rubberband 3.3.0-2'
 test "$(pacman -Q mingw-w64-ucrt-x86_64-lame)" = 'mingw-w64-ucrt-x86_64-lame 3.100-3'
 test "$(pacman -Q mingw-w64-ucrt-x86_64-chromaprint)" = 'mingw-w64-ucrt-x86_64-chromaprint 1.6.1-1'
 pacman -Q > vendor/media-packages.txt
