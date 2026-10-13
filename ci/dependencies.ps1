@@ -13,9 +13,9 @@ function Expand-Source($Archive, $Destination) {
     New-Item -ItemType Directory -Force $Temporary | Out-Null
     Expand-Archive $Archive $Temporary
     $Root = @(Get-ChildItem $Temporary -Directory)
-    if ($Root.Count -ne 1) { throw "Unexpected archive layout: $Archive" }
-    Move-Item $Root[0].FullName $Destination
-    Remove-Item $Temporary -Recurse
+    if (Test-Path "$Temporary/CMakeLists.txt") { Move-Item $Temporary $Destination }
+    elseif ($Root.Count -eq 1) { Move-Item $Root[0].FullName $Destination; Remove-Item $Temporary -Recurse }
+    else { throw "Unexpected archive layout: $Archive" }
 }
 $Wx = Get-Archive 'https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.10/wxWidgets-3.2.10.zip' 'wxWidgets-3.2.10.zip'
 Expand-Source $Wx 'vendor/wxWidgets'
