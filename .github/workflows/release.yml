@@ -2,6 +2,12 @@ name: Windows portable
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full source SHA for a missing automatic run
+        required: true
+        type: string
 permissions:
   contents: write
 concurrency:
@@ -15,6 +21,12 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - name: Validate recovery identity
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          if ($env:EXPECTED_SHA -ne $env:GITHUB_SHA) { throw 'Recovery SHA does not match the checked out commit.' }
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

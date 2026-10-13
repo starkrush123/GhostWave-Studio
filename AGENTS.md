@@ -45,6 +45,8 @@
 * Set workflow concurrency to ghostwave-windows-${{ github.sha }} and
   cancel-in-progress: false; keep build, test, package, and release in one job.
 * Do not start a second run for a SHA while its run is pending or running.
+* A manual recovery trigger is allowed only when gh confirms no run exists for
+  that full SHA; pass expected_sha and retain the same workflow concurrency group.
 * After every commit and push, find its run with gh run list --commit FULL_SHA.
 * Start gh run watch RUN_ID --exit-status in a background terminal session.
 * Monitor that session to completion, inspect failures, and fix before continuing.

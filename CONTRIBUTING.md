@@ -4,7 +4,7 @@ Read [AGENTS.md](AGENTS.md) before editing. Research externally verifiable imple
 
 Do not install dependencies, configure CMake or compile locally. Use existing tools only for small source checks. The Windows GitHub Actions job installs pinned dependencies, captures the historical Python oracle, builds the C++ application, runs byte comparisons and checks the extracted portable UI.
 
-Keep changes on main within the authorized workflow. Commit and push once, find the exact SHA with `gh run list --commit FULL_SHA`, and start `gh run watch RUN_ID --exit-status` in a background terminal. Wait for completion and inspect failed logs before another fix commit. Never dispatch a second run for the same SHA. The workflow uses only the main push trigger and one Windows job.
+Keep changes on main within the authorized workflow. Commit and push once, find the exact SHA with `gh run list --commit FULL_SHA`, and start `gh run watch RUN_ID --exit-status` in a background terminal. Wait for completion and inspect failed logs before another fix commit. Never dispatch a second run for the same SHA. The workflow uses the main push trigger and one Windows job. A manual recovery trigger accepts the exact expected SHA only when no automatic run exists; it shares the same concurrency group.
 
 Compatibility references come from commit `a5e5fa6f7e26174b1fa424e7089889546cc44120`, with Python 3.12.10 and pinned oracle dependencies. The controlled environment disables selected CPU kernels and retains the entire NumPy RandomState. Never add tolerances or update reference hashes to make a native mismatch pass. Freeze the first reference and dependency capture only after checking its provenance and repeatability.
 
