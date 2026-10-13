@@ -38,7 +38,7 @@ Expand-Source $Ffmpeg 'vendor/ffmpeg'
 Copy-Item vendor/ffmpeg/bin/ffmpeg.exe vendor/media/ffmpeg.exe -Force
 python -m pip download --only-binary=:all: -r ci/oracle-requirements.txt -d vendor/archives/wheels
 python -m pip install --no-index --find-links vendor/archives/wheels -r ci/oracle-requirements.txt
-$Sndfile = python -c 'import soundfile; print(soundfile._libname)'
+$Sndfile = python -c 'import soundfile; print(soundfile._full_path)'
 Copy-Item $Sndfile vendor/media/libsndfile_x64.dll -Force
 $Filters = & vendor/media/ffmpeg.exe -hide_banner -filters 2>&1 | Out-String
 $Formats = & vendor/media/ffmpeg.exe -hide_banner -formats 2>&1 | Out-String
