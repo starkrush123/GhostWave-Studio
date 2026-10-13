@@ -1,7 +1,9 @@
 param([string]$PortablePath='ci-output/smoke')
 $ErrorActionPreference='Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw 'UI smoke testing is allowed only in GitHub Actions.' }
-Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, UIAutomationClientsideProviders, System.Windows.Forms
+$Providers=[AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'UIAutomationClientsideProviders' } | Select-Object -First 1
+[System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($Providers.GetName())
 $Portable=(Resolve-Path $PortablePath).Path
 Copy-Item ci-output/native/home/smoke.sn "$Portable/ghostwave.sn"
 $App=Start-Process "$Portable/GhostWaveStudio.exe" -WorkingDirectory $Portable -PassThru
@@ -13,7 +15,7 @@ try {
     $Deadline=[DateTime]::UtcNow.AddSeconds(20)
     do {
         $Items=$Window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
-        $Rows=@($Items | ForEach-Object { @{name=$_.Current.Name; role=$_.Current.ControlType.ProgrammaticName; focusable=$_.Current.IsKeyboardFocusable; enabled=$_.Current.IsEnabled} })
+        $Rows=@($Items | ForEach-Object { @{name=$_.Current.Name; role=$_.Current.ControlType.ProgrammaticName; focusable=$_.Current.IsKeyboardFocusable; enabled=$_.Current.IsEnabled; class=$_.Current.ClassName; framework=$_.Current.FrameworkId} })
         if ($Rows | Where-Object { $_.name -eq 'Audio' }) { break }
         Start-Sleep -Milliseconds 200
     } while ([DateTime]::UtcNow -lt $Deadline)

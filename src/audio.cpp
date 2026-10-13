@@ -67,9 +67,8 @@ size_t fast_length(size_t n,bool real=false) { return real ? pocketfft::detail::
 template<typename T> std::vector<std::complex<T>> analytic(std::vector<T> data,size_t frames,int channels) {
     const auto n = fast_length(frames);
     std::vector<std::complex<T>> padded(n*channels), transformed(n*channels);
-    for(size_t i=0;i<data.size();++i) padded[i] = data[i];
-    pocketfft::c2c<T>({n,static_cast<size_t>(channels)},{static_cast<ptrdiff_t>(sizeof(std::complex<T>)*channels),sizeof(std::complex<T>)},
-        {static_cast<ptrdiff_t>(sizeof(std::complex<T>)*channels),sizeof(std::complex<T>)},{0},true,padded.data(),transformed.data(),T(1),1);
+    data.resize(n*channels); auto spectrum=rfft(data,n,channels);
+    for(size_t i=0;i<n;++i) for(int c=0;c<channels;++c) transformed[i*channels+c]=i<=n/2?spectrum[i*channels+c]:std::conj(spectrum[(n-i)*channels+c]);
     for(size_t i=0;i<n;++i) {
         T factor = (i==0 || (n%2==0 && i==n/2)) ? T(1) : (i<(n+1)/2 ? T(2) : T(0));
         for(int c=0;c<channels;++c) transformed[i*channels+c] *= factor;
@@ -373,11 +372,16 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
             std::vector<float> out(total),norm(total);
             for(size_t frame=0;frame<frames;++frame) {
                 cancelled(cancel);
-                std::vector<float> segment(fft_size);
-                for(size_t i=0;i<fft_size;++i) { ptrdiff_t index=static_cast<ptrdiff_t>(frame*hop+i)-1024; if(index>=0 && static_cast<size_t>(index)<n) segment[i]=data.samples[index*channels+c]*window[i]; }
-                auto spectrum=rfft(segment,fft_size,1);
-                for(auto& z:spectrum) z*=1.0f/1024.0f;
-                if(frame==0&&c==0) { trace_audio("peaks.window",window); trace_audio("peaks.segment",segment); trace_audio("peaks.spectrum",spectrum); }
+                // SciPy STFT concatenates float64 padding before multiplying its float32 window.
+                std::vector<double> segment(fft_size);
+                for(size_t i=0;i<fft_size;++i) { ptrdiff_t index=static_cast<ptrdiff_t>(frame*hop+i)-1024; if(index>=0 && static_cast<size_t>(index)<n) segment[i]=static_cast<double>(data.samples[index*channels+c])*window[i]; }
+                auto transformed=rfft(segment,fft_size,1); std::vector<std::complex<float>> spectrum(bins);
+                for(size_t i=0;i<bins;++i) spectrum[i]=static_cast<std::complex<float>>(transformed[i]*(1.0/1024.0));
+                if(frame==0&&c==0) {
+                    trace_audio("peaks.window",window); trace_audio("peaks.segment",segment); trace_audio("peaks.spectrum",spectrum);
+                    std::vector<float> magnitudes(bins),phases(bins); for(size_t i=0;i<bins;++i) { magnitudes[i]=complex_magnitude(spectrum[i]); phases[i]=std::arg(spectrum[i]); }
+                    trace_audio("peaks.magnitude",magnitudes); trace_audio("peaks.phase",phases);
+                }
                 if(maxbin>minbin) {
                     int top=minbin; float magnitude=complex_magnitude(spectrum[top]);
                     for(int k=minbin+1;k<maxbin;++k) { float current=complex_magnitude(spectrum[k]); if(current>magnitude) { magnitude=current; top=k; } }
@@ -419,16 +423,20 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
         diffuse=filter(std::move(diffuse),1,bank(sr).at("air"),true);
         double peak=0; for(size_t i=0;i<length;++i) { impulse[i]+=diffuse[i]; peak=std::max(peak,std::abs(impulse[i])); }
         for(auto& value:impulse) value/=peak+1e-6;
+        trace_audio("room.impulse",impulse);
         std::vector<float> sat=data.samples; for(auto& value:sat) value=std::tanh(value*1.25f)/1.25f;
         const auto size=fast_length(n+length-1,true);
         double wet=options.value("reamping_wet_mix",0.28);
         for(int c=0;c<channels;++c) {
             std::vector<float> source(size); for(size_t i=0;i<n;++i) source[i]=sat[i*channels+c];
+            if(c==0) trace_audio("room.saturated",std::vector<float>(source.begin(),source.begin()+n));
             std::vector<double> response(size); size_t delay=c==1?static_cast<size_t>(0.0015*sr)%length:0;
             for(size_t i=0;i<length;++i) response[i]=impulse[(i+length-delay)%length];
             auto a=rfft(source,size,1); auto b=rfft(response,size,1);
+            if(c==0) trace_audio("room.spectrum",a);
             for(size_t i=0;i<b.size();++i) b[i]*=std::complex<double>(a[i].real(),a[i].imag());
             auto convolution=irfft(b,size,1);
+            if(c==0) trace_audio("room.convolution",std::vector<double>(convolution.begin(),convolution.begin()+n));
             for(size_t i=0;i<n;++i) data.samples[i*channels+c]=static_cast<float>(static_cast<float>(1.0-wet)*sat[i*channels+c]+wet*convolution[i]);
         }
     } else if(stage=="pitch" || stage=="wobble") {
@@ -445,7 +453,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
     } else if(stage=="normalize") {
         float peak=0;
         for(auto& value:data.samples) { if(!std::isfinite(value)) value=std::isnan(value)?0.0f:std::signbit(value)?-1.0f:1.0f; peak=std::max(peak,std::abs(value)); }
-        if(peak>0) { float factor=static_cast<float>(std::pow(10.0,options.value("peak_target_db",-0.5)/20.0)/peak); for(auto& value:data.samples) value*=factor; }
+        if(peak>0) { float factor=static_cast<float>(std::pow(10.0,options.value("peak_target_db",-0.5)/20.0))/peak; for(auto& value:data.samples) value*=factor; }
     } else throw std::runtime_error("Unknown audio stage: "+stage);
     trace_audio(stage+".output",data.samples); return data;
 }

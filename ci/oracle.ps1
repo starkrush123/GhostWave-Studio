@@ -68,7 +68,7 @@ def trace(name, values):
     if trace_folder is not None:
         path = trace_folder / (name + '.bin')
         if not path.exists(): np.asarray(values).tofile(path)
-original_hilbert, original_stft, original_istft = signal.hilbert, signal.stft, signal.istft
+original_hilbert, original_stft, original_istft, original_convolve = signal.hilbert, signal.stft, signal.istft, signal.fftconvolve
 def capture_hilbert(*args, **kwargs):
     result = original_hilbert(*args, **kwargs)
     if active_stage == 'bode': trace('bode.analytic', result[:len(args[0])])
@@ -77,14 +77,23 @@ def capture_stft(*args, **kwargs):
     result = original_stft(*args, **kwargs)
     if active_stage == 'peaks':
         window = signal.get_window('hann', 2048).astype(np.float32)
-        segment = np.pad(args[0], (1024,1024))[:2048] * window
+        segment = np.pad(args[0], (1024,1024)).astype(np.float64)[:2048] * window
         trace('peaks.window', window); trace('peaks.segment', segment); trace('peaks.spectrum', result[2][:,0])
+        trace('peaks.magnitude', np.abs(result[2])[:,0]); trace('peaks.phase', np.angle(result[2])[:,0])
     return result
 def capture_istft(*args, **kwargs):
     if active_stage == 'peaks':
         trace('peaks.modified', args[0][:,0]); trace('peaks.inverse', scipy.fft.irfft(args[0][:,0], n=2048))
     return original_istft(*args, **kwargs)
 signal.hilbert, signal.stft, signal.istft = capture_hilbert, capture_stft, capture_istft
+def capture_convolve(*args, **kwargs):
+    result = original_convolve(*args, **kwargs)
+    if active_stage == 'room':
+        trace('room.saturated', args[0]); trace('room.impulse', args[1])
+        size = scipy.fft.next_fast_len(len(args[0]) + len(args[1]) - 1, real=True)
+        trace('room.spectrum', scipy.fft.rfft(args[0], size)); trace('room.convolution', result[:len(args[0])])
+    return result
+signal.fftconvolve = capture_convolve
 def capture_stage(name, function):
     def call(*args, **kwargs):
         global active_stage
