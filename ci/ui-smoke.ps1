@@ -10,8 +10,14 @@ try {
     do { Start-Sleep -Milliseconds 200; $App.Refresh() } while (!$App.MainWindowHandle -and !$App.HasExited -and [DateTime]::UtcNow -lt $Deadline)
     if (!$App.MainWindowHandle) { throw 'Portable GUI did not create a window.' }
     $Window=[System.Windows.Automation.AutomationElement]::FromHandle($App.MainWindowHandle)
-    $Items=$Window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
-    $Rows=@($Items | ForEach-Object { @{name=$_.Current.Name; role=$_.Current.ControlType.ProgrammaticName; focusable=$_.Current.IsKeyboardFocusable; enabled=$_.Current.IsEnabled} })
+    $Deadline=[DateTime]::UtcNow.AddSeconds(20)
+    do {
+        $Items=$Window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+        $Rows=@($Items | ForEach-Object { @{name=$_.Current.Name; role=$_.Current.ControlType.ProgrammaticName; focusable=$_.Current.IsKeyboardFocusable; enabled=$_.Current.IsEnabled} })
+        if ($Rows | Where-Object { $_.name -eq 'Audio' }) { break }
+        Start-Sleep -Milliseconds 200
+    } while ([DateTime]::UtcNow -lt $Deadline)
+    @{passed=$false; window=$Window.Current.Name; controls=$Rows} | ConvertTo-Json -Depth 8 | Set-Content ci-output/ui-results.json -Encoding utf8
     foreach ($Name in @('Audio','Lyrics','Process audio','Preset','Format')) { if (!($Rows | Where-Object { $_.name -eq $Name })) { throw "Accessible control missing: $Name" } }
     $Focusable=@($Rows | Where-Object { $_.focusable -and $_.enabled })
     if ($Focusable.Count -lt 6) { throw 'Too few keyboard accessible controls.' }

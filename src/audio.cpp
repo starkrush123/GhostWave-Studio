@@ -16,6 +16,12 @@
 namespace gw {
 namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
+template<class T> void trace_audio(const std::string& name,const std::vector<T>& values) {
+    wchar_t directory[32768]; auto count=GetEnvironmentVariableW(L"GHOSTWAVE_TRACE_DIR",directory,32768);
+    if(!count||count>=32768) return;
+    Bytes raw(values.size()*sizeof(T)); if(!raw.empty()) std::memcpy(raw.data(),values.data(),raw.size());
+    write_atomic(fs::path(directory)/fs::u8path(name+".bin"),raw);
+}
 struct SoundFileApi {
     HMODULE library = nullptr;
     decltype(&sf_wchar_open) open = nullptr;
@@ -299,6 +305,7 @@ void export_audio(const fs::path& path,Audio data,const std::string& bitrate,boo
     if(!MoveFileExW(encoded.path.c_str(),target.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) throw std::runtime_error("Cannot replace output file");
 }
 Audio audio_stage(const std::string& stage,Audio data,const Json& options,RandomState& random,const std::atomic_bool* cancel) {
+    trace_audio(stage+".input",data.samples);
     cancelled(cancel);
     const auto n=data.frames(); const int channels=data.channels,sr=data.rate;
     if(!n) return data;
@@ -345,6 +352,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
     } else if(stage=="bode" || stage=="triple") {
         if(stage=="bode") {
             auto hilbert=analytic(data.samples,n,channels); float frequency=static_cast<float>(2*pi*options.value("bode_shift_hz",8.5)),wet=0.85f,dry=0.15f;
+            trace_audio("bode.analytic",hilbert);
             for(size_t i=0;i<n;++i) { float phase=frequency*time32(i,n,static_cast<double>(n)/sr); for(int c=0;c<channels;++c) { auto k=i*channels+c; float shifted=hilbert[k].real()*std::cos(phase)-hilbert[k].imag()*std::sin(phase); data.samples[k]=dry*data.samples[k]+wet*shifted; } }
         } else {
             auto bass=filter(asdouble(data),channels,bank(sr).at("bass200"));
@@ -369,6 +377,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
                 for(size_t i=0;i<fft_size;++i) { ptrdiff_t index=static_cast<ptrdiff_t>(frame*hop+i)-1024; if(index>=0 && static_cast<size_t>(index)<n) segment[i]=data.samples[index*channels+c]*window[i]; }
                 auto spectrum=rfft(segment,fft_size,1);
                 for(auto& z:spectrum) z*=1.0f/1024.0f;
+                if(frame==0&&c==0) { trace_audio("peaks.window",window); trace_audio("peaks.segment",segment); trace_audio("peaks.spectrum",spectrum); }
                 if(maxbin>minbin) {
                     int top=minbin; float magnitude=complex_magnitude(spectrum[top]);
                     for(int k=minbin+1;k<maxbin;++k) { float current=complex_magnitude(spectrum[k]); if(current>magnitude) { magnitude=current; top=k; } }
@@ -376,7 +385,9 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
                     float amplitude=magnitude*static_cast<float>(options.value("decoy_peak_intensity",1.15)),phase=std::arg(spectrum[top])+0.45f;
                     spectrum[target]+=amplitude*std::complex<float>(std::cos(phase),std::sin(phase));
                 }
+                if(frame==0&&c==0) trace_audio("peaks.modified",spectrum);
                 auto inverse=irfft(spectrum,fft_size,1);
+                if(frame==0&&c==0) trace_audio("peaks.inverse",inverse);
                 for(size_t i=0;i<fft_size;++i) { inverse[i]*=1024.0f; out[frame*hop+i]+=inverse[i]*window[i]; norm[frame*hop+i]+=window[i]*window[i]; }
             }
             for(size_t i=0;i<n;++i) { const auto index=i+1024; data.samples[i*channels+c]=out[index]/(norm[index]>1e-10f?norm[index]:1.0f); }
@@ -436,7 +447,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
         for(auto& value:data.samples) { if(!std::isfinite(value)) value=std::isnan(value)?0.0f:std::signbit(value)?-1.0f:1.0f; peak=std::max(peak,std::abs(value)); }
         if(peak>0) { float factor=static_cast<float>(std::pow(10.0,options.value("peak_target_db",-0.5)/20.0)/peak); for(auto& value:data.samples) value*=factor; }
     } else throw std::runtime_error("Unknown audio stage: "+stage);
-    return data;
+    trace_audio(stage+".output",data.samples); return data;
 }
 AudioResult process_audio(const fs::path& input,const fs::path& output,const AudioOptions& options,const Profile& profile,Progress progress,const std::atomic_bool* cancel,RandomState* provided,Transport transport) {
     AudioResult result;

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -190,13 +191,15 @@ std::string changelog(bool online,Transport transport,const std::atomic_bool* ca
     } catch(...) { cancelled(cancel); }
     return best;
 }
-fs::path download_update(const Json& info,Progress progress,const std::atomic_bool* cancel) {
+fs::path download_update(const Json& info,Progress progress,const std::atomic_bool* cancel,Transport transport) {
     if(!info.value("has_update",false)) throw std::runtime_error("No published portable update");
     auto name=info.at("asset_name").get<std::string>();
     if(fs::u8path(name).filename()!=fs::u8path(name)) throw std::runtime_error("Invalid update filename");
     HttpRequest request; request.url=info.at("download_url"); request.timeout_seconds=60; request.progress=progress;
-    auto response=http(request,cancel); if(response.status!=200) throw std::runtime_error("Update download failed");
-    auto checksum=http({"GET",info.at("checksum_url"),"",{},15},cancel);
+    auto origin=std::string("https://github.com/")+repository+"/releases/download/";
+    if(request.url.rfind(origin,0)!=0||info.at("checksum_url").get<std::string>().rfind(origin,0)!=0) throw std::runtime_error("Invalid update origin");
+    auto response=transport(request,cancel); if(response.status!=200) throw std::runtime_error("Update download failed");
+    auto checksum=transport({"GET",info.at("checksum_url"),"",{},15},cancel);
     if(checksum.status!=200) throw std::runtime_error("Update checksum is missing");
     std::string digest(checksum.body.begin(),checksum.body.end());
     if(digest.size()<64||lowered(digest.substr(0,64))!=hex(sha256(response.body))) throw std::runtime_error("Update checksum failed");
@@ -204,22 +207,31 @@ fs::path download_update(const Json& info,Progress progress,const std::atomic_bo
     try {
         auto archive=folder/fs::u8path(name); write_atomic(archive,response.body);
         wxFileInputStream file(archive.wstring()); wxZipInputStream zip(file);
-        size_t entries=0,total=0;
+        size_t entries=0,total=0; std::set<std::string> names; Json hashes=Json::object();
         while(auto entry=std::unique_ptr<wxZipEntry>(zip.GetNextEntry())) {
             cancelled(cancel); if(++entries>1000) throw std::runtime_error("Update archive has too many entries");
             fs::path relative(entry->GetName().ToStdWstring());
-            relative=relative.lexically_normal();
             if(relative.is_absolute()||relative.has_root_name()) throw std::runtime_error("Invalid archive path");
-            for(const auto& part:relative) if(part==L".."||part.wstring().find(L':')!=std::wstring::npos) throw std::runtime_error("Invalid archive path");
+            for(const auto& part:relative) {
+                auto value=part.wstring();
+                if(value==L".."||value.find(L':')!=std::wstring::npos||(!value.empty()&&(value.back()==L'.'||value.back()==L' '))) throw std::runtime_error("Invalid archive path");
+            }
+            relative=relative.lexically_normal(); auto key=relative.generic_u8string();
+            if(key.empty()||key=="."||!names.insert(lowered(key)).second) throw std::runtime_error("Duplicate or empty archive path");
             auto destination=folder/relative;
             if(entry->IsDir()) { fs::create_directories(destination); continue; }
             fs::create_directories(destination.parent_path());
             Bytes content; unsigned char buffer[65536];
-            while(zip.CanRead()) { zip.Read(buffer,sizeof(buffer)); auto n=zip.LastRead(); if(!n) break; total+=n; if(total>512*1024*1024) throw std::runtime_error("Expanded update is too large"); content.insert(content.end(),buffer,buffer+n); }
+            while(zip.CanRead()) { cancelled(cancel); zip.Read(buffer,sizeof(buffer)); auto n=zip.LastRead(); if(!n) break; total+=n; if(total>512*1024*1024) throw std::runtime_error("Expanded update is too large"); content.insert(content.end(),buffer,buffer+n); }
+            if(zip.GetLastError()!=wxSTREAM_EOF||!zip.CloseEntry()) throw std::runtime_error("Corrupt update archive");
+            if(key!="manifest.json") hashes[key]=hex(sha256(content));
             write_atomic(destination,content);
         }
+        if(zip.GetLastError()!=wxSTREAM_EOF) throw std::runtime_error("Corrupt update archive");
         auto manifest=read_json(folder/"manifest.json");
-        if(manifest.at("architecture")!="x64"||manifest.at("commit").get<std::string>().size()!=40||!fs::is_regular_file(folder/"GhostWaveStudio.exe")) throw std::runtime_error("Invalid portable package");
+        auto commit=manifest.at("commit").get<std::string>();
+        if(manifest.at("architecture")!="x64"||commit.size()!=40||commit.find_first_not_of("0123456789abcdef")!=std::string::npos||!manifest.at("files").is_object()||manifest.at("files").size()!=hashes.size()||!fs::is_regular_file(folder/"GhostWaveStudio.exe")) throw std::runtime_error("Invalid portable package");
+        for(auto it=hashes.begin();it!=hashes.end();++it) if(!manifest["files"].contains(it.key())||manifest["files"].at(it.key())!=it.value()) throw std::runtime_error("Portable file checksum failed");
         return folder;
     } catch(...) { std::error_code error; fs::remove_all(folder,error); throw; }
 }

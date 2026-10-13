@@ -62,6 +62,43 @@ save_json('normal-state.json',state())
 np.random.uniform(-.2,.3,10001).astype('<f8').tofile(ref/'uniform.bin')
 save_json('uniform-state.json',state())
 stages = dict(limit=ap.apply_soft_limiting,jitter=ap.apply_micro_chrono_jitter,bode=ap.apply_bode_frequency_shifter,triple=ap.apply_triple_band_bode_shifter,vocal=ap.apply_total_center_vocal_annihilation,scrambler=ap.apply_anti_whisper_vocal_scrambler,peaks=ap.apply_adversarial_peak_injection,phase=ap.apply_schroeder_phase_dispersion,bed=ap.apply_continuous_camouflage_bed,room=ap.apply_virtual_acoustic_reamping,padding=ap.apply_front_and_tail_padding,eq=ap.apply_eq_and_dither,pitch=ap.apply_pitch_and_tempo_shift,wobble=ap.apply_continuous_pitch_wobble)
+trace_folder = None
+active_stage = ''
+def trace(name, values):
+    if trace_folder is not None:
+        path = trace_folder / (name + '.bin')
+        if not path.exists(): np.asarray(values).tofile(path)
+original_hilbert, original_stft, original_istft = signal.hilbert, signal.stft, signal.istft
+def capture_hilbert(*args, **kwargs):
+    result = original_hilbert(*args, **kwargs)
+    if active_stage == 'bode': trace('bode.analytic', result[:len(args[0])])
+    return result
+def capture_stft(*args, **kwargs):
+    result = original_stft(*args, **kwargs)
+    if active_stage == 'peaks':
+        window = signal.get_window('hann', 2048).astype(np.float32)
+        segment = np.pad(args[0], (1024,1024))[:2048] * window
+        trace('peaks.window', window); trace('peaks.segment', segment); trace('peaks.spectrum', result[2][:,0])
+    return result
+def capture_istft(*args, **kwargs):
+    if active_stage == 'peaks':
+        trace('peaks.modified', args[0][:,0]); trace('peaks.inverse', scipy.fft.irfft(args[0][:,0], n=2048))
+    return original_istft(*args, **kwargs)
+signal.hilbert, signal.stft, signal.istft = capture_hilbert, capture_stft, capture_istft
+def capture_stage(name, function):
+    def call(*args, **kwargs):
+        global active_stage
+        previous = active_stage; active_stage = name
+        trace(name + '.input', args[0])
+        try:
+            result = function(*args, **kwargs)
+            trace(name + '.output', result)
+            return result
+        finally: active_stage = previous
+    return call
+for name, function in list(stages.items()):
+    stages[name] = capture_stage(name, function)
+    setattr(ap, function.__name__, stages[name])
 audio_cases=[]
 for label,channels,length,rate in (('mono',1,44117,44100),('stereo',2,44117,44100),('odd',1,4099,44100),('short',2,317,44100),('lowrate',1,1231,8000),('silence',2,4099,44100)):
     samples=np.arange(length,dtype=np.float64)/rate
@@ -74,6 +111,8 @@ for label,channels,length,rate in (('mono',1,44117,44100),('stereo',2,44117,4410
     loaded.astype('<f4').tofile(ref/(label+'.loaded.bin'))
     audio_cases.append(dict(name=label+'.load',stage='load',input=label+'.wav',output=label+'.loaded.bin',rate=loaded_rate,channels=channels))
     for name,function in stages.items():
+        trace_folder = root / 'ci-output/reference-trace' / (label + '.' + name)
+        trace_folder.mkdir(parents=True, exist_ok=True)
         before=reset()
         try: output=function(data.copy()) if name=='limit' else function(data.copy(),rate)
         except ValueError: continue
@@ -107,10 +146,13 @@ for index in range(6):
     for extension,bitrate in (('wav','wav'),('mp3','320k')):
         options.output_bitrate=bitrate
         before=reset(); name=f'preset{index}.{extension}'
+        trace_folder = root / 'ci-output/reference-trace' / name
+        trace_folder.mkdir(parents=True, exist_ok=True)
         result=ap.AudioProcessor().process(str(ref/'stereo.wav'),str(ref/name),options)
         if not result.success: raise RuntimeError(result.error_message)
         pipeline.append(dict(input='stereo.wav',output=name,options=dataclasses.asdict(options),random_state=before,expected_random_state=state()))
 frame.Destroy()
+trace_folder = None
 float_fixture(ref/'slice-source.wav',np.tile(np.array([.1,-.1],dtype=np.float32),int(44100*7.25)),44100)
 parts=ap.slice_audio_for_suno(str(ref/'slice-source.wav'),str(ref/'slices'),3.5)
 save_json('slices.json',[pathlib.Path(p).name for p in parts])

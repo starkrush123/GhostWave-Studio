@@ -125,7 +125,8 @@ std::vector<int> normalize_version(const std::string& value);
 Json parse_changelog(const std::string& text);
 Json check_update(Transport transport = http, const std::atomic_bool* cancel = nullptr);
 std::string changelog(bool online, Transport transport = http, const std::atomic_bool* cancel = nullptr);
-fs::path download_update(const Json& info, Progress progress, const std::atomic_bool* cancel = nullptr);
+fs::path download_update(const Json& info, Progress progress, const std::atomic_bool* cancel = nullptr,
+                         Transport transport = http);
 std::string diagnostics();
 Json create_ticket(Profile& profile, const std::string& title, const std::string& description,
                    const std::string& category, bool include_diagnostics, Transport transport = http,

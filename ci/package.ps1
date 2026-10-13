@@ -54,6 +54,8 @@ try {
     'Hello beautiful world' | Set-Content ci-output/smoke/lyrics.txt -Encoding utf8
     & ci-output/smoke/ghostwave-cli.exe --lyrics ci-output/smoke/lyrics.txt --lyrics-out ci-output/smoke/result.txt --config-sn ci-output/native/home/smoke.sn --no-adlibs
     if (!(Test-Path ci-output/smoke/result.txt)) { throw 'Extracted portable CLI failed.' }
+    & ci-output/smoke/ghostwave-cli.exe --input ci-output/reference/mono.wav --output ci-output/smoke/audio.mp3 --format mp3 --trim --duration 1 --config-sn ci-output/native/home/smoke.sn --no-banner
+    if (!(Test-Path ci-output/smoke/audio.mp3) -or (Get-Item ci-output/smoke/audio.mp3).Length -eq 0) { throw 'Extracted portable audio processing failed.' }
     & "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File ci/ui-smoke.ps1
     if ($LASTEXITCODE -ne 0) { throw 'Native accessibility smoke test failed.' }
 } finally { $env:PATH=$OriginalPath }

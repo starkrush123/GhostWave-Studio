@@ -137,6 +137,7 @@ jobs:
             ci-output/reference-hashes.json
             ci-output/reference-verification.json
             ci-output/reference/
+            ci-output/reference-trace/
             ci-output/native-results.json
             ci-output/profile-results.json
             ci-output/native/

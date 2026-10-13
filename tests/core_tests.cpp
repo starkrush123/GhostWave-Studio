@@ -1,6 +1,8 @@
 #include "ghostwave/core.hpp"
 #include <windows.h>
 #include <wx/init.h>
+#include <wx/mstream.h>
+#include <wx/zipstrm.h>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -28,6 +30,12 @@ void equal_bytes(const std::string& name,const Bytes& actual,const Bytes& expect
     throw std::runtime_error("Byte mismatch at "+std::to_string(first)+", differing bytes "+std::to_string(different)+", sizes "+std::to_string(actual.size())+" and "+std::to_string(expected.size()));
 }
 HttpResponse response(const Json& json,unsigned status=200) { auto text=json.dump(); return {status,Bytes(text.begin(),text.end()),"application/json"}; }
+std::string digest(const Bytes& value) { std::string result; for(auto c:sha256(value)) { result+="0123456789abcdef"[c>>4]; result+="0123456789abcdef"[c&15]; } return result; }
+Bytes zip_fixture(const std::vector<std::pair<std::string,Bytes>>& files) {
+    wxMemoryOutputStream memory; wxZipOutputStream zip(memory,0);
+    for(const auto& file:files) { require(zip.PutNextEntry(wxString::FromUTF8(file.first)),"ZIP fixture entry failed"); zip.Write(file.second.data(),file.second.size()); require(zip.CloseEntry(),"ZIP fixture write failed"); }
+    require(zip.Close(),"ZIP fixture could not close"); Bytes result(memory.GetSize()); memory.CopyTo(result.data(),result.size()); return result;
+}
 Transport offline=[](const HttpRequest&,const std::atomic_bool*)->HttpResponse { throw std::runtime_error("Network is disabled in tests"); };
 }
 int main(int argc,char** argv) {
@@ -61,6 +69,7 @@ int main(int argc,char** argv) {
     for(const auto& item:read_json(ref/"audio-cases.json")) {
         auto name=item.at("name").get<std::string>();
         test("audio "+name,[&,item,name] {
+            auto trace=evidence/"trace"/fs::u8path(name); fs::create_directories(trace); SetEnvironmentVariableW(L"GHOSTWAVE_TRACE_DIR",trace.c_str());
             auto stage=item.at("stage").get<std::string>(); Audio data;
             if(stage=="load") data=read_audio(ref/fs::u8path(item.at("input").get<std::string>()));
             else {
@@ -91,6 +100,7 @@ int main(int argc,char** argv) {
     for(const auto& item:read_json(ref/"pipeline.json")) {
         auto name=item.at("output").get<std::string>();
         test("export "+name,[&,item,name] {
+            auto trace=evidence/"trace"/fs::u8path(name); fs::create_directories(trace); SetEnvironmentVariableW(L"GHOSTWAVE_TRACE_DIR",trace.c_str());
             AudioOptions options; options.values=item.at("options"); RandomState random(0); random.restore(item.at("random_state"));
             auto output=evidence/fs::u8path(name);
             auto result=process_audio(ref/fs::u8path(item.at("input").get<std::string>()),output,options,defaults,{},nullptr,&random,offline);
@@ -99,6 +109,7 @@ int main(int argc,char** argv) {
         });
     }
     test("slicing compatibility",[&] {
+        SetEnvironmentVariableW(L"GHOSTWAVE_TRACE_DIR",nullptr);
         auto parts=slice_audio(ref/"slice-source.wav",evidence/"slices",3.5); auto names=read_json(ref/"slices.json"); require(parts.size()==names.size(),"Slice count differs");
         for(size_t i=0;i<parts.size();++i) { require(parts[i].filename().u8string()==names[i],"Slice filename differs"); equal_bytes("slice"+std::to_string(i),read_bytes(parts[i]),read_bytes(ref/"slices"/fs::u8path(names[i].get<std::string>()))); }
     });
@@ -135,6 +146,38 @@ int main(int argc,char** argv) {
         require(!check_update([&](const HttpRequest& request,const std::atomic_bool*) { require(request.url.find(repository)!=std::string::npos,"Wrong updater origin");return response(release); })["has_update"].get<bool>(),"Draft accepted as update");
         release["draft"]=false; release["prerelease"]=true; require(!check_update([&](const HttpRequest&,const std::atomic_bool*){return response(release);})["has_update"].get<bool>(),"Prerelease accepted");
         require(!check_update(offline)["error_message"].get<std::string>().empty(),"Update error hidden");
+    });
+    test("portable update trust boundaries",[&] {
+        Bytes executable{'T','E','S','T','E','X','E','C','U','T','A','B','L','E'};
+        Json manifest={{"architecture","x64"},{"commit",std::string(40,'a')},{"files",{{"GhostWaveStudio.exe",digest(executable)}}}};
+        auto text=manifest.dump(); std::vector<std::pair<std::string,Bytes>> files={{"GhostWaveStudio.exe",executable},{"manifest.json",Bytes(text.begin(),text.end())}};
+        Json info={{"has_update",true},{"asset_name","GhostWaveStudio-fixture-win64-Portable.zip"},{"download_url",std::string("https://github.com/")+repository+"/releases/download/fixture/app.zip"},{"checksum_url",std::string("https://github.com/")+repository+"/releases/download/fixture/app.zip.sha256"}};
+        auto unpack=[&](const Bytes& archive) {
+            return download_update(info,{},nullptr,[&](const HttpRequest& request,const std::atomic_bool*) {
+                require(request.headers.empty(),"Update sent credentials");
+                if(request.url==info["download_url"]) return HttpResponse{200,archive,"application/zip"};
+                auto hash=digest(archive); return HttpResponse{200,Bytes(hash.begin(),hash.end()),"text/plain"};
+            });
+        };
+        auto valid=zip_fixture(files); auto folder=unpack(valid); require(read_bytes(folder/"GhostWaveStudio.exe")==executable,"Portable extraction failed"); fs::remove_all(folder);
+        auto invalid=files; invalid.push_back({"../escape.exe",executable}); rejects([&]{unpack(zip_fixture(invalid));});
+        require(!fs::exists(home/"Downloads/GhostWaveStudio/escape.exe"),"Archive escaped its directory");
+        invalid=files; invalid.push_back({"ghostwavestudio.EXE",executable}); rejects([&]{unpack(zip_fixture(invalid));});
+        invalid=files; invalid[0].second[0]='X'; rejects([&]{unpack(zip_fixture(invalid));});
+        auto corrupt=valid; auto payload=std::search(corrupt.begin(),corrupt.end(),executable.begin(),executable.end()); require(payload!=corrupt.end(),"Stored ZIP fixture missing payload"); *payload^=1; rejects([&]{unpack(corrupt);});
+        auto truncated=valid; truncated.resize(truncated.size()/2); rejects([&]{unpack(truncated);});
+        info["download_url"]="https://example.invalid/app.zip"; rejects([&]{unpack(valid);});
+        auto downloads=home/"Downloads/GhostWaveStudio"; require(fs::is_empty(downloads),"Rejected update left extracted files");
+    });
+    test("remote lyrics and fallback",[&] {
+        auto profile=defaults; profile.data["lyrics_cloak_mode"]="cloud"; profile.data["lyrics_cloud_provider"]="custom"; profile.data["lyrics_cloud_api_token"]="fixture_token"; profile.data["lyrics_cloud_endpoint_url"]="https://example.invalid/lyrics";
+        auto result=process_lyrics("Hello beautiful world",profile,nullptr,[&](const HttpRequest& request,const std::atomic_bool*) {
+            auto body=Json::parse(request.body); require(request.method=="POST"&&request.headers[1].second=="Bearer fixture_token"&&body["messages"].size()==2,"Remote lyrics contract changed");
+            return response({{"choices",Json::array({{{"message",{{"content","```text\nA distant quiet sky\n```"}}}}})}});
+        }); require(result.text=="A distant quiet sky"&&result.warnings.empty(),"Remote lyrics were not used");
+        auto fallback=process_lyrics("Hello beautiful world",profile,nullptr,offline); profile.data["lyrics_cloud_api_token"]="";
+        require(fallback.text==process_lyrics("Hello beautiful world",profile,nullptr,offline).text&&!fallback.warnings.empty(),"Remote lyrics fallback changed");
+        std::atomic_bool cancel{true}; rejects([&]{process_lyrics("Hello",profile,&cancel,offline);});
     });
     test("cloud and support contracts",[&] {
         auto profile=defaults; profile.path=home/"support.sn"; profile.data["cloud_provider"]="custom"; profile.data["cloud_endpoint_url"]="https://example.invalid/audio";
