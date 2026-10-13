@@ -24,7 +24,7 @@ Expand-Source $Json 'vendor/json'
 $Unicode = Get-Archive 'https://github.com/JuliaStrings/utf8proc/archive/refs/tags/v2.8.0.zip' 'utf8proc-2.8.0.zip'
 Expand-Source $Unicode 'vendor/utf8proc'
 git clone --depth 1 --branch v1.15.3 --filter=blob:none --sparse https://github.com/scipy/scipy.git vendor/scipy
-git -C vendor/scipy sparse-checkout set scipy/_lib/pocketfft
+git -C vendor/scipy sparse-checkout set scipy/_lib
 git -C vendor/scipy submodule update --init --depth 1 scipy/_lib/pocketfft
 Copy-Item vendor/scipy/scipy/_lib/pocketfft vendor/pocketfft -Recurse
 git clone --depth 1 --branch 1.2.2 https://github.com/libsndfile/libsndfile.git vendor/libsndfile
