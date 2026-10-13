@@ -55,6 +55,7 @@ jobs:
             vendor/wxWidgets
             build
           key: windows-native-${{ steps.image.outputs.version }}-${{ hashFiles('CMakeLists.txt', 'ci/dependencies.ps1') }}
+          restore-keys: windows-native-${{ steps.image.outputs.version }}-
       - name: Configure native application
         id: configure
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
@@ -69,6 +70,9 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Native compatibility checks failed.' }
+      - name: Validate profile rollback
+        if: always() && steps.compile.outcome == 'success'
+        run: ./ci/check-profile.ps1
       - name: Package and smoke test
         run: ./ci/package.ps1
       - name: Create draft release
@@ -86,6 +90,7 @@ jobs:
             ci-output/reference-verification.json
             ci-output/reference/
             ci-output/native-results.json
+            ci-output/profile-results.json
             ci-output/native/
             ci-output/ui-results.json
             build/Testing/Temporary/LastTest.log

@@ -469,7 +469,12 @@ std::vector<fs::path> slice_audio(const fs::path& input,const fs::path& director
         piece.samples.assign(data.samples.begin()+start*data.channels,data.samples.begin()+end*data.channels);
         if(end-start<static_cast<size_t>(3*data.rate)&&!result.empty()) {
             auto previous=read_audio(result.back(),0,false);
-            previous.samples.insert(previous.samples.end(),piece.samples.begin(),piece.samples.end());
+            // Historical sf.read promotes the combined PCM16 remainder to double before limiting.
+            std::vector<double> combined(previous.samples.begin(),previous.samples.end());
+            combined.insert(combined.end(),piece.samples.begin(),piece.samples.end());
+            double peak=0; for(auto value:combined) peak=std::max(peak,std::abs(value));
+            if(peak>0.98) for(auto& value:combined) value=std::tanh(value/0.98)*0.98;
+            assign(previous,combined);
             export_audio(result.back(),std::move(previous),"wav",true,cancel); break;
         }
         std::ostringstream suffix; suffix<<"_part"<<std::setw(2)<<std::setfill('0')<<result.size()+1<<".wav";

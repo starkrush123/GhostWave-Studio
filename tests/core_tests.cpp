@@ -102,6 +102,10 @@ int main(int argc,char** argv) {
         auto parts=slice_audio(ref/"slice-source.wav",evidence/"slices",3.5); auto names=read_json(ref/"slices.json"); require(parts.size()==names.size(),"Slice count differs");
         for(size_t i=0;i<parts.size();++i) { require(parts[i].filename().u8string()==names[i],"Slice filename differs"); equal_bytes("slice"+std::to_string(i),read_bytes(parts[i]),read_bytes(ref/"slices"/fs::u8path(names[i].get<std::string>()))); }
     });
+    test("loud remainder compatibility",[&] {
+        auto parts=slice_audio(ref/"slice-loud.wav",evidence/"slices-loud",3.5); auto names=read_json(ref/"slices-loud.json"); require(parts.size()==names.size(),"Loud slice count differs");
+        for(size_t i=0;i<parts.size();++i) equal_bytes("slice-loud"+std::to_string(i),read_bytes(parts[i]),read_bytes(ref/"slices-loud"/fs::u8path(names[i].get<std::string>())));
+    });
     test("audio boundaries and cancellation",[&] {
         auto empty=evidence/"empty.wav"; write_atomic(empty,{}); rejects([&]{read_audio(empty);});
         Audio data{44100,1,{2.0f,-2.0f,0.0f}}; RandomState random(1); auto limited=audio_stage("limit",data,AudioOptions().values,random);
@@ -111,6 +115,9 @@ int main(int argc,char** argv) {
         std::atomic_bool cancel{true}; auto target=evidence/"preserved.wav"; write_atomic(target,Bytes{1,2,3,4});
         auto result=process_audio(ref/"mono.wav",target,AudioOptions(),defaults,{},&cancel,&random,offline);
         require(!result.success&&read_bytes(target)==Bytes({1,2,3,4}),"Cancellation destroyed output");
+        auto failed_target=evidence/"preserved.mp3"; write_atomic(failed_target,Bytes{4,3,2,1});
+        rejects([&]{export_audio(failed_target,clean,"invalid",true);});
+        require(read_bytes(failed_target)==Bytes({4,3,2,1}),"Failed export destroyed output");
         rejects([&]{slice_audio(ref/"mono.wav",evidence/"bad",NAN);});
     });
     test("CLI validation",[&] {

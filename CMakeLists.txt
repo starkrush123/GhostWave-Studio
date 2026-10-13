@@ -28,6 +28,7 @@ target_compile_options(ghostwave_core PRIVATE /W4 /utf-8 /fp:strict /permissive-
 target_link_libraries(ghostwave_core PUBLIC wx::base utf8proc PRIVATE bcrypt winhttp crypt32)
 add_executable(GhostWaveStudio WIN32 src/gui.cpp resources/app.rc)
 target_link_libraries(GhostWaveStudio PRIVATE ghostwave_core wx::core shell32)
+target_link_options(GhostWaveStudio PRIVATE /MANIFEST:NO)
 target_compile_options(GhostWaveStudio PRIVATE /W4 /utf-8 /permissive- /EHsc)
 add_executable(ghostwave-cli src/console.cpp)
 target_link_libraries(ghostwave-cli PRIVATE ghostwave_core shell32)
