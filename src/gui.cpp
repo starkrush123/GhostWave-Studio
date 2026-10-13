@@ -90,6 +90,7 @@ class Frame : public wxFrame {
     int last_progress=-1;
     std::vector<std::string> preset_names={"Complete Sanitization (Recommended)","Balanced Audio Quality","Room Acoustic Simulation","Frequency & Phase Shift","Vocal Reduction Only","Cloud API Stem Separation"};
     void report_error(const std::string& error) { wxMessageBox(wxString::FromUTF8(error),t("error"),wxOK|wxICON_ERROR,this); }
+    void announce(const wxString& message) { status->SetLabel(message); status->SetName(message); wxAccessible::NotifyEvent(wxACC_EVENT_OBJECT_NAMECHANGE,status,wxOBJID_CLIENT,0); }
     void state(bool busy) {
         tabs->Enable(!busy); cancel_button->Enable(busy);
         for(size_t i=0;i<GetMenuBar()->GetMenuCount();++i) GetMenuBar()->EnableTop(i,!busy);
@@ -97,20 +98,19 @@ class Frame : public wxFrame {
     }
     void start(std::function<void(Job&)> task,std::function<void(Job&)> completion={}) {
         if(job) return;
-        job=std::make_unique<Job>(); finish=std::move(completion); state(true); last_progress=-1; gauge->SetValue(0); status->SetLabel(t("working"));
+        job=std::make_unique<Job>(); finish=std::move(completion); state(true); last_progress=-1; gauge->SetValue(0); announce(t("working"));
         auto current=job.get();
         worker=std::thread([current,task=std::move(task)] { try { task(*current); } catch(const std::exception& error) { current->error=error.what(); } catch(...) { current->error="Processing failed."; } current->done.store(true); });
     }
     void tick(wxTimerEvent&) {
         if(!job) return;
         { std::lock_guard<std::mutex> lock(job->mutex); int percent=std::clamp(job->percent,0,100); gauge->SetValue(percent);
-          if(percent/5!=last_progress/5) { auto message=t("working"); if(message.EndsWith(".")) message.RemoveLast(); status->SetLabel(wxString::Format("%s %d%%.",message,percent)); last_progress=percent; wxAccessible::NotifyEvent(wxACC_EVENT_OBJECT_NAMECHANGE,status,wxOBJID_CLIENT,0); } }
+          if(percent/5!=last_progress/5) { auto message=t("working"); if(message.EndsWith(".")) message.RemoveLast(); announce(wxString::Format("%s %d%%.",message,percent)); last_progress=percent; } }
         if(!job->done.load()) return;
         worker.join(); auto complete=std::move(job); auto callback=std::move(finish); state(false);
         if(closing) { Close(); return; }
-        if(!complete->error.empty()) { status->SetLabel(complete->cancel.load()?t("cancelled"):t("error")); if(!complete->cancel.load()) report_error(complete->error); }
-        else { gauge->SetValue(100); status->SetLabel(t("done")); if(callback) try { callback(*complete); } catch(const std::exception& error) { report_error(error.what()); } }
-        wxAccessible::NotifyEvent(wxACC_EVENT_OBJECT_NAMECHANGE,status,wxOBJID_CLIENT,0);
+        if(!complete->error.empty()) { announce(complete->cancel.load()?t("cancelled"):t("error")); if(!complete->cancel.load()) report_error(complete->error); }
+        else { gauge->SetValue(100); announce(t("done")); if(callback) try { callback(*complete); } catch(const std::exception& error) { report_error(error.what()); } }
         if(!job) (tabs->GetSelection()==0?input:lyrics_input)->SetFocus();
     }
     void sync() {
@@ -267,7 +267,7 @@ public:
         lyrics_output=field(lyrics,lyrics_sizer,"result",{},wxTE_MULTILINE|wxTE_READONLY); auto lyrics_buttons=new wxBoxSizer(wxHORIZONTAL); auto process_lyrics_button=button(lyrics,lyrics_buttons,"process_lyrics"); auto copy_button=button(lyrics,lyrics_buttons,"copy"); lyrics_sizer->Add(lyrics_buttons,0,wxALIGN_RIGHT); lyrics->SetSizer(lyrics_sizer);
         tabs->AddPage(audio,t("audio")); tabs->AddPage(lyrics,t("lyrics")); sizer->Add(tabs,1,wxEXPAND|wxALL,10);
         gauge=new wxGauge(panel,wxID_ANY,100); named(gauge,t("progress")); sizer->Add(gauge,0,wxEXPAND|wxLEFT|wxRIGHT,12);
-        auto bottom=new wxBoxSizer(wxHORIZONTAL); status=new wxStaticText(panel,wxID_ANY,t("ready")); named(status,t("status")); bottom->Add(status,1,wxALIGN_CENTER_VERTICAL|wxALL,8); cancel_button=button(panel,bottom,"cancel"); cancel_button->Enable(false); sizer->Add(bottom,0,wxEXPAND); panel->SetSizer(sizer);
+        auto bottom=new wxBoxSizer(wxHORIZONTAL); status=new wxStaticText(panel,wxID_ANY,t("ready")); named(status,t("ready")); bottom->Add(status,1,wxALIGN_CENTER_VERTICAL|wxALL,8); cancel_button=button(panel,bottom,"cancel"); cancel_button->Enable(false); sizer->Add(bottom,0,wxEXPAND); panel->SetSizer(sizer);
         restore(); input->SetDropTarget(new AudioDrop(this));
         browse->Bind(wxEVT_BUTTON,[this](wxCommandEvent&){open_audio();}); preset->Bind(wxEVT_CHOICE,[this](wxCommandEvent&){choose_preset();});
         for(auto control:{process_audio_button,process_lyrics_button}) control->Bind(wxEVT_BUTTON,[this](wxCommandEvent&){try { process(); } catch(const std::exception& error) {report_error(error.what());}});
@@ -294,7 +294,7 @@ public:
     ~Frame() override { timer.Stop();if(job)job->cancel=true;if(worker.joinable())worker.join(); }
     void startup() { if(profile.data["check_updates_on_startup"].get<bool>()) update(true); }
     void open_audio() { if(job)return;wxFileDialog dialog(this,t("open_audio"),{},{} ,"Audio files|*.wav;*.mp3;*.flac;*.ogg;*.m4a;*.aac;*.wma|All files|*.*",wxFD_OPEN|wxFD_FILE_MUST_EXIST);if(dialog.ShowModal()==wxID_OK)set_audio(dialog.GetPath()); }
-    void set_audio(const wxString& path) { input->SetValue(path);output->Clear();tabs->SetSelection(0);auto file=fs::path(path.ToStdWstring());start([file](Job& job){job.json=inspect_audio(file);},[this](Job& job){status->SetLabel(wxString::Format("%.1f s, %d Hz, %d",job.json["duration_seconds"].get<double>(),job.json["sample_rate"].get<int>(),job.json["channels"].get<int>()));}); }
+    void set_audio(const wxString& path) { input->SetValue(path);output->Clear();tabs->SetSelection(0);auto file=fs::path(path.ToStdWstring());start([file](Job& job){job.json=inspect_audio(file);},[this](Job& job){announce(wxString::Format(t("audio_info"),job.json["duration_seconds"].get<double>(),job.json["sample_rate"].get<int>(),job.json["channels"].get<int>()));}); }
 };
 bool AudioDrop::OnDropFiles(wxCoord,wxCoord,const wxArrayString& files) { if(files.empty())return false;frame->set_audio(files[0]);return true; }
 class App : public wxApp {

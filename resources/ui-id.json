@@ -125,5 +125,6 @@
   "syllable_accuracy": "Ketepatan suku kata",
   "staff": "Petugas bantuan",
   "you": "Anda",
-  "ticket_closed": "Tiket ini sudah ditutup."
+  "ticket_closed": "Tiket ini sudah ditutup.",
+  "audio_info": "%.1f detik, %d Hz, %d kanal."
 }

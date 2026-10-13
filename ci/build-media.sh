@@ -6,6 +6,7 @@ pacman -Q mingw-w64-ucrt-x86_64-rubberband mingw-w64-ucrt-x86_64-lame mingw-w64-
 test "$(pacman -Q mingw-w64-ucrt-x86_64-rubberband)" = 'mingw-w64-ucrt-x86_64-rubberband 3.3.0-2'
 test "$(pacman -Q mingw-w64-ucrt-x86_64-lame)" = 'mingw-w64-ucrt-x86_64-lame 3.100-3'
 test "$(pacman -Q mingw-w64-ucrt-x86_64-chromaprint)" = 'mingw-w64-ucrt-x86_64-chromaprint 1.6.1-1'
+test "$(pacman -Q mingw-w64-ucrt-x86_64-libx264)" = 'mingw-w64-ucrt-x86_64-libx264 0.165.r3222.b35605a-3'
 pacman -Q > vendor/media-packages.txt
 cd vendor/ffmpeg
 trap 'if test -f ffbuild/config.log; then cp ffbuild/config.log "$task_root/ci-output/media-config.log"; fi' EXIT
@@ -15,12 +16,12 @@ export GIT_DIR=/dev/null
   --disable-autodetect --disable-everything --disable-programs --enable-ffmpeg \
   --disable-doc --disable-debug --disable-shared --enable-static --disable-avdevice \
   --disable-swscale --disable-network --enable-gpl --enable-version3 \
-  --enable-librubberband --enable-libmp3lame --enable-chromaprint \
+  --enable-librubberband --enable-libmp3lame --enable-chromaprint --enable-libx264 \
   --pkg-config-flags=--static --extra-cflags=-DCHROMAPRINT_NODLL --extra-libs=-lstdc++ \
   --extra-ldflags='-static -Wl,--no-insert-timestamp' \
   --enable-demuxers --enable-parsers --enable-protocol=file,pipe \
   --enable-decoder=aac,aac_fixed,aac_latm,ac3,eac3,alac,flac,mp3,mp3float,opus,vorbis,wmav1,wmav2,wmapro,wmalossless,wmavoice,pcm_alaw,pcm_mulaw,pcm_s8,pcm_u8,pcm_s16le,pcm_s16be,pcm_s24le,pcm_s24be,pcm_s32le,pcm_s32be,pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be \
-  --enable-encoder=pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,flac,libmp3lame \
+  --enable-encoder=pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,flac,libmp3lame,libx264 \
   --enable-muxer=wav,mp3,flac,chromaprint,null \
   --enable-filter=abuffer,abuffersink,aformat,aresample,anull,rubberband,vibrato,volume,atempo,asetrate
 make -r -j4 ffmpeg.exe

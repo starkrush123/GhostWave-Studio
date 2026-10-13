@@ -126,6 +126,12 @@ const Json& bank(int rate) {
     return coefficients.at(key);
 }
 void assign(Audio& data,const std::vector<double>& values) { data.samples.assign(values.begin(),values.end()); }
+float complex_magnitude(const std::complex<float>& value) {
+    float a=std::abs(value.real()),b=std::abs(value.imag());
+    if(!std::isfinite(a)||!std::isfinite(b)) return std::hypot(a,b);
+    float larger=std::max(a,b),smaller=std::min(a,b),ratio=larger?smaller/larger:0.0f;
+    return std::sqrt(ratio*ratio+1.0f)*larger;
+}
 Audio limit(Audio data,float threshold) {
     float peak=0; for(auto value:data.samples) peak=std::max(peak,std::abs(value));
     if(peak>threshold) for(auto& value:data.samples) value=std::tanh(value/threshold)*threshold;
@@ -364,8 +370,8 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
                 auto spectrum=rfft(segment,fft_size,1);
                 for(auto& z:spectrum) z*=1.0f/1024.0f;
                 if(maxbin>minbin) {
-                    int top=minbin; float magnitude=std::abs(spectrum[top]);
-                    for(int k=minbin+1;k<maxbin;++k) { float current=std::abs(spectrum[k]); if(current>magnitude) { magnitude=current; top=k; } }
+                    int top=minbin; float magnitude=complex_magnitude(spectrum[top]);
+                    for(int k=minbin+1;k<maxbin;++k) { float current=complex_magnitude(spectrum[k]); if(current>magnitude) { magnitude=current; top=k; } }
                     int target=std::min(static_cast<int>(bins-1),top+4);
                     float amplitude=magnitude*static_cast<float>(options.value("decoy_peak_intensity",1.15)),phase=std::arg(spectrum[top])+0.45f;
                     spectrum[target]+=amplitude*std::complex<float>(std::cos(phase),std::sin(phase));
@@ -398,7 +404,7 @@ Audio audio_stage(const std::string& stage,Audio data,const Json& options,Random
         std::vector<double> impulse(length); impulse[0]=1;
         for(const auto& reflection:{std::pair{0.016,0.45}, {0.027,-0.34}, {0.041,0.28}, {0.059,-0.21}}) { size_t index=static_cast<size_t>(reflection.first*sr); if(index<length) impulse[index]=static_cast<float>(reflection.second); }
         std::vector<double> diffuse(length);
-        for(size_t i=0;i<length;++i) diffuse[i]=static_cast<float>(0.08*random.normal())*std::exp(-(static_cast<double>(i)*0.25/length)/0.35);
+        for(size_t i=0;i<length;++i) diffuse[i]=static_cast<float>(0.08*random.normal())*std::exp(-(static_cast<double>(i)*(0.25/length))/0.35);
         diffuse=filter(std::move(diffuse),1,bank(sr).at("air"),true);
         double peak=0; for(size_t i=0;i<length;++i) { impulse[i]+=diffuse[i]; peak=std::max(peak,std::abs(impulse[i])); }
         for(auto& value:impulse) value/=peak+1e-6;

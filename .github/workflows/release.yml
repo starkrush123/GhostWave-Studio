@@ -65,6 +65,7 @@ jobs:
             mingw-w64-ucrt-x86_64-rubberband
             mingw-w64-ucrt-x86_64-lame
             mingw-w64-ucrt-x86_64-chromaprint
+            mingw-w64-ucrt-x86_64-libx264
       - name: Compile patched FFmpeg
         id: media
         if: steps.media_cache.outputs.cache-hit != 'true'

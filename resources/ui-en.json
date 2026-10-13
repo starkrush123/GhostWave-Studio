@@ -125,5 +125,6 @@
   "syllable_accuracy": "Syllable accuracy",
   "staff": "Support",
   "you": "You",
-  "ticket_closed": "This ticket is closed."
+  "ticket_closed": "This ticket is closed.",
+  "audio_info": "%.1f seconds, %d Hz, %d channels."
 }
