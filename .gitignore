@@ -223,3 +223,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Local release downloads must never enter Git.
+/installer/
+*.sn.bak
+*.sn.tmp
+/ci-output/
+/vendor/
+
+!resources/app.manifest

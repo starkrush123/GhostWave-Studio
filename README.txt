@@ -1,188 +1,76 @@
-GHOSTWAVE STUDIO (VERSION 1.6.2)
-USER GUIDE AND GETTING STARTED MANUAL
+GhostWave Studio 2.0.0
 
-Original Website: http://technokerslab.blogspot.com/
+Native C++17 portable application for Windows 10 22H2 and Windows 11 x64.
+The desktop interface uses wxWidgets native Windows controls with accessibility enabled.
+No Python installation or separate FFmpeg installation is needed by the portable application.
 
-Welcome to GhostWave Studio! If you are looking for an easy, no-nonsense way
-to prepare your audio tracks and lyrics for platforms like Suno without running
-into automated upload blocks, you are in the right place. I designed this
-program so you do not need to know anything about coding, command lines, or
-signal processing to get great results.
+Getting started
 
+Extract the complete portable ZIP into a writable folder and open GhostWaveStudio.exe.
+Choose your language on first use.
+In Audio, choose an input, preset and format, then select Process audio.
+In Lyrics, paste your text, choose a mode and select Process lyrics, then Copy result.
+Detailed audio and lyric options are available in Tools, Advanced.
+Tools also provides cloud credentials, artist names, slicing and acoustic comparison.
+Help provides updates, changelog, support tickets and keyboard guidance.
+Audio and lyric measurements describe the output and do not guarantee acceptance by another service.
 
-WHAT THIS PROGRAM ACTUALLY DOES
+Keyboard and screen readers
 
-When you upload a song to AI music services, their system runs an automated
-scanner across your file looking for matches against existing copyrighted
-songs. It listens for specific audio landmarks, melody curves, and voice
-characteristics. If it thinks your file sounds too close to an existing
-commercial track, it simply rejects it.
+Tab and Shift+Tab move between controls; Ctrl+Tab switches tabs.
+Ctrl+O opens audio; Ctrl+Enter processes the active tab; Escape cancels active processing.
+F1 opens keyboard guidance; F2 opens the changelog.
+Processing uses a worker, and controls are restored after completion or cancellation.
+The CI smoke test checks native control names, keyboard focus and clean window closure.
+Actual NVDA and Narrator use requires a manual Windows check before public distribution.
 
-GhostWave Studio takes your original song and applies gentle acoustic
-adjustments that scramble those landmark fingerprints. To the human ear,
-your song still sounds like your track with its groove and rhythm intact,
-but to automated scanners, the fingerprint matches disappear into static.
+Profiles
 
-All your private API keys and settings are stored locally inside a profile
-vault file named ghostwave.sn on your computer. Nothing is ever sent to any
-unauthorized server, and you do not have to download giant machine learning
-models just to use the software.
+Existing .sn profiles remain supported, including cloud tokens, settings and support ticket credentials.
+The application uses ghostwave.sn in the current directory when present, otherwise .ghostwave.sn in your user directory.
+Save and import dialogs support other .sn files.
+Valid profiles receive an atomic .bak backup when saved.
+A damaged profile is preserved; if a backup is recovered, export it to a new file before saving.
+The inherited encrypted format uses an application key and does not protect secrets from someone who can reverse engineer the application.
+Keep profiles and backups private.
 
+Command line
 
-LANGUAGE SUPPORT AND REALTIME SWITCHING
+Use ghostwave-cli.exe --help for all switches.
+ghostwave-cli.exe --input song.wav --output result.wav --preset balanced
+ghostwave-cli.exe --lyrics lyrics.txt --lyrics-out result.txt --lyrics-mode phonetic --no-adlibs
+ghostwave-cli.exe --input song.wav --slice --slice-duration 22 --output chunks
+ghostwave-cli.exe --input song.wav --output result.wav --audit-only
+Use --config-sn FILE to select an existing profile.
+The historical max, balanced and cloud CLI presets retain their historical processing behavior.
 
-Starting in version 1.4.0, GhostWave Studio features full internationalization
-support for both English and Bahasa Indonesia.
+Cloud and updates
 
-When you launch the application for the very first time, a language selection
-dialog welcomes you, allowing you to choose your preferred language right away.
-You can also change the interface language at any time from the Language menu
-in the menu bar. The interface updates immediately in real-time without needing
-to restart the program.
+Stem separation supports Replicate, Hugging Face and a custom HTTPS endpoint.
+Remote lyrics support Groq, OpenRouter, OpenAI and a custom compatible HTTPS endpoint.
+Provider availability, model access and credentials depend on the external service.
+Support requests are sent only when you submit a ticket or reply.
+The updater checks published portable releases from starkrush123/GhostWave-Studio.
+Drafts and prereleases are excluded; downloads require a matching checksum and safe archive paths.
+The downloaded update opens in a new folder without replacing the running application.
 
+Development and verification
 
-SUPPORT TICKETS AND GETTING HELP
+All installation, native compilation, native tests and packaging run in GitHub Actions.
+Do not install anything or compile locally; local work is limited to small source checks.
+The one Windows workflow runs on pushes to main and prevents overlapping runs for a commit.
+It builds with MSVC 2022, CMake, wxWidgets 3.2.10 and pinned media dependencies.
+Python runs only in CI from historical commit a5e5fa6f7e26174b1fa424e7089889546cc44120 as a compatibility oracle.
+The gate requires identical audio bytes, including stage results and WAV and MP3 exports.
+Reference state includes the complete NumPy RandomState and Gaussian cache.
+The first dependency and reference captures must be frozen before release packaging is allowed.
+Passing build and compatibility gates produces a portable ZIP, checksum and source manifest in a draft release.
+Manual screen reader checks remain distinct from automated structural checks.
+Downloaded drafts belong in installer/, which is ignored and must never be committed.
+See AGENTS.md and CONTRIBUTING.md for the full workflow.
 
-If you ever encounter an issue, discover an audio file format that fails to
-process, or have an idea for a new feature, you can send a support ticket directly
-from inside the application without needing a browser.
+Credits
 
-1. Press Ctrl+T on your keyboard or select Help > Support Tickets in the menu bar.
-2. Choose your ticket category from the list: Bug Report, Feature Request, Question
-and Support, or Other.
-3. Type in a subject and detailed description of the situation.
-4. Leave the system diagnostics box checked so I can see your operating
-system details and app version to fix the problem quickly.
-5. Click Submit Ticket.
-
-Your ticket is securely delivered to my end. You can check the
-"My Tickets" tab at any time to read replies from the developer and send follow-up
-messages directly in the dialog.
-
-You can also reach out directly via email at hafiyanajah@gmail.com for any
-inquiries or feedback.
-
-
-QUICK START: CLEANING YOUR AUDIO IN THREE EASY STEPS
-
-Step 1: Open your audio file.
-Click the Browse Audio File button or press Alt+B on your keyboard. Select your
-song file (MP3, WAV, FLAC, M4A, or OGG). GhostWave Studio will inspect the file
-and show you its duration, sample rate, and format right on the screen. You can
-also just drag and drop the audio file directly into the application window from
-File Explorer!
-
-Step 2: Choose your sanitization preset.
-For most people, the default preset named "Complete Sanitization" gives the
-highest level of protection. If you want to keep the song sounding closer to the
-original recording, you can pick "Balanced Audio Quality" from the drop-down
-menu. If you do not want to fiddle with numbers, you can completely ignore the
-advanced options. If you do want to tweak pitch shifts, tempo nudges, or room
-simulation, click the "Show Advanced Settings" button to expand those controls.
-
-Step 3: Process and export your file.
-Click "Process Audio" or press Alt+P. Choose where you want to save
-the new file. I strongly recommend saving your file as 16-bit PCM WAV. The
-progress bar will fill up as each stage runs, and when it finishes, you will get
-a clean audio file that is ready to upload. If you ever need to stop halfway
-through, simply click the "Cancel" button.
-
-
-THE SECRET TO UPLOADING TO SUNO WITHOUT GETTING BLOCKED
-
-Over months of testing, I discovered that how you upload your file to Suno
-matters just as much as what is inside the audio. Keep these four golden rules
-in mind:
-
-1. Always export as lossless 16-bit WAV instead of MP3.
-MP3 files contain hidden header frames and encoder metadata that automated
-fingerprint scanners love to latch onto. Lossless WAV files have zero extra
-metadata tags, which makes them much harder for scanners to detect.
-
-2. Do not upload directly on the Create page.
-Suno's Create page runs an aggressive, synchronous fingerprint scan that will
-often flag files immediately. Instead, go to your Suno Library page and click the
-"Upload Audio" button there. Suno's Library upload queue handles files through a
-different ingestion worker that is significantly more relaxed. Once your audio
-chunk shows up in your Library, click the three dots on the track and select
-"Extend" or "Create with Audio".
-
-3. Keep your uploaded audio chunks between 20 and 24 seconds.
-Long songs give scanners hundreds of matching points in a row. Short clips
-break up that continuous timeline. If you have a longer track, click the "ABS
-Audio Slicer" button in GhostWave Studio (or press Alt+S) and let it split your
-song into clean 22-second WAV chunks automatically. Upload part 1 to your
-Library first, and you are ready to go.
-
-4. If Suno blocks an upload, clear your cookies or wait a bit.
-If Suno ever tells you that your audio matches an existing recording, do not
-keep hitting upload immediately. Your browser session gets temporarily flagged
-for thirty to sixty minutes. Open a private or incognito window, clear your
-browser cache, or take a short break before trying again with your sanitized
-file.
-
-
-CLEANING AND FORMATTING YOUR LYRICS
-
-If you are typing or pasting lyrics into Suno and getting blocked because of
-artist names, trademarked phrases, or copyright filters, switch over to the
-Lyrics Sanitizer tab by pressing Ctrl+Tab.
-
-1. Paste your lyrics into the top box.
-2. Select your sanitization strategy. The "Phonetic Spelling Variation" is the most
-popular because it replaces sensitive phrases with singable phonetic spellings
-and hyphenated syllables without changing how the singer delivers the words.
-3. Click "Sanitize Lyrics" or press Alt+S.
-4. Click "Copy to Clipboard" or press Alt+C, and paste them straight into
-Suno's prompt box.
-
-
-ACCESSIBILITY SHORTCUTS FOR SCREEN READERS
-
-GhostWave Studio was built from day one to be fully usable with screen readers,
-including NVDA, JAWS, and Windows Narrator. Every button, slider, and status
-box has an explicit spoken label and a hotkey.
-
-Press F1 at any time to open the Accessibility Guide dialog. You can read
-through the instructions line by line with your arrow keys, press Escape or
-Alt+C to close it, or click the Copy button to save the entire shortcut list to
-your clipboard.
-
-Key shortcuts to remember:
-Tab and Shift+Tab: Move forward and backward through controls.
-Ctrl+Tab and Ctrl+Shift+Tab: Switch between the Audio and Lyrics tabs.
-Alt+B: Browse for an audio file.
-Alt+P: Process and export your audio.
-Alt+E: Open the Audio Similarity Audit report.
-Alt+S: In the Audio tab, opens the ABS Audio Slicer. In the Lyrics tab, runs
-the lyrics sanitizer.
-Alt+A: Open Cloud API settings.
-Ctrl+T: Open Support Ticket Center.
-Ctrl+U: Open the ABS Audio Slicer from anywhere in the app.
-Ctrl+B: Open the Celebrity Blacklist editor.
-Ctrl+H or Shift+F1: Open the Suno Upload Guide cheat sheet.
-Ctrl+Shift+S: Export your settings profile (.sn).
-Ctrl+Shift+O: Import an existing settings profile (.sn).
-Ctrl+A: Select all text inside any multiline box.
-F2: Open What's New / Changelog viewer to read latest updates offline or online.
-Escape: Close any dialog immediately.
-
-
-KEEPING GHOSTWAVE STUDIO UPDATED
-
-You do not need to keep checking websites to see if a new version came out.
-Whenever you launch GhostWave Studio, it can check the update by itself quietly in the
-background. If an update is available, a friendly window will appear asking if
-you would like to download it.
-
-You can click "See What is New in This Changes" to read the notes right inside
-the same window, or click "Download Now" to let the software download the new
-installer and guide you through the update in seconds.
-
-
-OPEN SOURCE AND COMMUNITY CONTRIBUTION
-
-GhostWave Studio is completely open source software. If you would like to inspect
-the source code, submit bug reports, suggest improvements, or contribute code,
-please visit my official GitHub repository:
-https://github.com/muhamadalfian20892/GhostWave-Studio
+Original project by Muhamad alfian and Technokers lab.
+The repository LICENSE covers project code; bundled components retain their own licenses in licenses/.
+Review the FFmpeg and libsndfile source and redistribution requirements before publishing a portable package.

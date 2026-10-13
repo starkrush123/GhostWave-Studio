@@ -1,87 +1,15 @@
-# Contributing to GhostWave Studio
+# Contributing
 
-Thank you for your interest in contributing to GhostWave Studio. This document outlines the technical standards, testing workflow, and submission guidelines for the project.
+Read [AGENTS.md](AGENTS.md) before editing. Research externally verifiable implementation details with Exa search and fetch, using official sources.
 
----
+Do not install dependencies, configure CMake or compile locally. Use existing tools only for small source checks. The Windows GitHub Actions job installs pinned dependencies, captures the historical Python oracle, builds the C++ application, runs byte comparisons and checks the extracted portable UI.
 
-## Technical Scope and Project Mission
+Keep changes on main within the authorized workflow. Commit and push once, find the exact SHA with `gh run list --commit FULL_SHA`, and start `gh run watch RUN_ID --exit-status` in a background terminal. Wait for completion and inspect failed logs before another fix commit. Never dispatch a second run for the same SHA. The workflow uses only the main push trigger and one Windows job.
 
-GhostWave Studio is an audio research project designed to study acoustic fingerprinting systems, neural audio embeddings, and automated speech recognition ingestion filters. Contributions should focus on signal processing fidelity, accessibility standards, test coverage, and security of user configuration data.
+Compatibility references come from commit `a5e5fa6f7e26174b1fa424e7089889546cc44120`, with Python 3.12.10 and pinned oracle dependencies. The controlled environment disables selected CPU kernels and retains the entire NumPy RandomState. Never add tolerances or update reference hashes to make a native mismatch pass. Freeze the first reference and dependency capture only after checking its provenance and repeatability.
 
----
+Do not submit real support tickets in tests. Use fixture transports for provider and support contracts. Preserve user profiles and existing output files on failure. Verify encrypted profile compatibility in both directions.
 
-## Development Environment Setup
+A passing workflow packages only portable application files and creates a draft release tied to the full source SHA. Keep it unpublished. Download its assets using `gh release download TAG --dir installer/`, then verify the SHA256 checksum. `git ls-files installer/` must be empty. Drafts are excluded from the application's updater.
 
-1. Clone the repository:
-   ```bash
-   git clone git@github-personal:muhamadalfian20892/GhostWave-Studio.git
-   cd GhostWave-Studio
-   ```
-
-2. Create a clean Python virtual environment (Python 3.10 or higher):
-   ```bash
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-
-3. Install required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Install FFmpeg:
-   Ensure FFmpeg and ffprobe are available in your system PATH. For Chromaprint audit capabilities, FFmpeg must be built with libchromaprint enabled.
-
----
-
-## Coding Standards and Architecture
-
-* **Signal Processing (audio_processor.py):**
-  Keep DSP operations vectorized through NumPy and SciPy. Avoid introducing local PyTorch checkpoint requirements. Heavy machine learning tasks such as stem separation should use remote REST endpoints or external APIs.
-
-* **Lyrics Processing (lyrics_processor.py):**
-  The primary cloaking strategy must preserve original lyrics tokens while perturbing orthography, syllable meter, and cadence endings. Ensure changes do not break singable phrasing.
-
-* **Security and Storage (config_manager.py):**
-  Never commit plaintext API keys or credentials. All configuration persistence must route through the encrypted .sn container using Fernet encryption with PBKDF2 key derivation.
-
-* **Accessibility (gui.py):**
-  Maintain accessibility standards for all wxPython controls. Every interactive element (buttons, text fields, checkboxes, sliders) requires explicit accessible names via `.SetName()` and helpful tooltips. Maintain keyboard navigation order with standard mnemonic accelerators.
-
----
-
-## Testing Requirements
-
-Every contribution must pass the full test suite before submission. Run tests using:
-
-```bash
-python -m unittest test_app.py
-```
-
-When adding new DSP filters or lyrics transforms, include corresponding unit test cases in `test_app.py` covering edge cases, empty inputs, and roundtrip serialization.
-
----
-
-## Building Executables and Installer
-
-To verify binary packaging locally:
-
-```bash
-# 1. Compile standalone binaries
-pyinstaller ghostwave.spec --noconfirm --clean
-
-# 2. Compile Windows installer
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-```
-
----
-
-## Pull Request Guidelines
-
-1. Create a feature branch from `main`:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-2. Write clean, readable code with descriptive commit messages.
-3. Run all unit tests and verify clean exit status.
-4. Open a pull request against the `main` branch with a concise explanation of changes made and verification steps performed.
+Automated UI Automation checks do not replace manual NVDA and Narrator checks. Check both tabs, menu shortcuts, advanced dialogs, read only results, cancellation and clean closure on Windows. Record what actually passed without claiming untested accessibility or external provider availability.
