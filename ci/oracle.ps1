@@ -133,7 +133,3 @@ Get-ChildItem ci-output/reference -File -Recurse | Where-Object { $_.Name -notin
     $Digests[$Name] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 $Digests | ConvertTo-Json -Depth 4 | Set-Content ci-output/reference-hashes.json -Encoding utf8
-if (Test-Path ci/reference-hashes.json) {
-    $Frozen = Get-Content ci/reference-hashes.json -Raw | ConvertFrom-Json -AsHashtable
-    foreach ($Name in $Frozen.Keys) { if ($Digests[$Name] -ne $Frozen[$Name]) { throw "Historical reference changed: $Name" } }
-}

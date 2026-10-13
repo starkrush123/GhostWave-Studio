@@ -59,8 +59,13 @@ jobs:
         id: configure
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
       - name: Compile native application
+        id: compile
         run: cmake --build build --config Release --parallel 4
+      - name: Validate frozen reference
+        if: always() && steps.compile.outcome == 'success'
+        run: ./ci/check-reference.ps1
       - name: Validate native compatibility
+        if: always() && steps.compile.outcome == 'success'
         run: |
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Native compatibility checks failed.' }
@@ -78,6 +83,7 @@ jobs:
           path: |
             ci-output/dependencies.json
             ci-output/reference-hashes.json
+            ci-output/reference-verification.json
             ci-output/reference/
             ci-output/native-results.json
             ci-output/native/
