@@ -232,7 +232,7 @@ Json create_ticket(Profile& profile,const std::string& title,const std::string& 
     Json payload={{"title",trim(title)},{"description",body},{"category",trim(category).empty()?"Support":trim(category)},{"client_version",version},{"ticket_key",key}};
     auto result=ticket_response(transport({"POST",worker+"/api/tickets",payload.dump(),{{"Content-Type","application/json"}},15},cancel));
     if(!result.value("success",false)||!result.contains("ticket_id")) throw std::runtime_error("Invalid support response");
-    result["ticket_key"]=key; result["category"]=category; result["title"]=trim(title);
+    result["ticket_key"]=key; result["category"]=category; result["title"]=trim(title); result["description"]=trim(description);
     profile.data["user_tickets"].insert(profile.data["user_tickets"].begin(),result); profile.save(); return result;
 }
 Json fetch_ticket(const Json& ticket,Transport transport,const std::atomic_bool* cancel) {
@@ -240,6 +240,7 @@ Json fetch_ticket(const Json& ticket,Transport transport,const std::atomic_bool*
     return ticket_response(transport({"GET",worker+"/api/tickets?id="+url_encode(id)+"&key="+url_encode(ticket.at("ticket_key")),"",{},15},cancel));
 }
 Json reply_ticket(const Json& ticket,const std::string& message,Transport transport,const std::atomic_bool* cancel) {
+    if(ticket.value("status",std::string("open"))=="closed") throw std::runtime_error("This ticket is closed.");
     if(trim(message).empty()) throw std::runtime_error("Reply message is required");
     Json payload={{"ticket_id",ticket.at("ticket_id")},{"ticket_key",ticket.at("ticket_key")},{"message",trim(message)}};
     return ticket_response(transport({"POST",worker+"/api/tickets/reply",payload.dump(),{{"Content-Type","application/json"}},15},cancel));

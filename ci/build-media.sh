@@ -8,6 +8,7 @@ test "$(pacman -Q mingw-w64-ucrt-x86_64-lame)" = 'mingw-w64-ucrt-x86_64-lame 3.1
 test "$(pacman -Q mingw-w64-ucrt-x86_64-chromaprint)" = 'mingw-w64-ucrt-x86_64-chromaprint 1.6.1-1'
 pacman -Q > vendor/media-packages.txt
 cd vendor/ffmpeg
+trap 'if test -f ffbuild/config.log; then cp ffbuild/config.log "$task_root/ci-output/media-config.log"; fi' EXIT
 patch -Nbp1 -i "$task_root/ci/ffmpeg-vibrato.patch"
 export GIT_DIR=/dev/null
 ./configure --target-os=mingw32 --arch=x86_64 --cc=gcc --cxx=g++ \
@@ -15,7 +16,8 @@ export GIT_DIR=/dev/null
   --disable-doc --disable-debug --disable-shared --enable-static --disable-avdevice \
   --disable-swscale --disable-network --enable-gpl --enable-version3 \
   --enable-librubberband --enable-libmp3lame --enable-chromaprint \
-  --pkg-config-flags=--static --extra-ldflags='-static -Wl,--no-insert-timestamp' \
+  --pkg-config-flags=--static --extra-cflags=-DCHROMAPRINT_NODLL --extra-libs=-lstdc++ \
+  --extra-ldflags='-static -Wl,--no-insert-timestamp' \
   --enable-demuxers --enable-parsers --enable-protocol=file,pipe \
   --enable-decoder=aac,aac_fixed,aac_latm,ac3,eac3,alac,flac,mp3,mp3float,opus,vorbis,wmav1,wmav2,wmapro,wmalossless,wmavoice,pcm_alaw,pcm_mulaw,pcm_s8,pcm_u8,pcm_s16le,pcm_s16be,pcm_s24le,pcm_s24be,pcm_s32le,pcm_s32be,pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be \
   --enable-encoder=pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,flac,libmp3lame \

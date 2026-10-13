@@ -110,7 +110,20 @@
   "about_text": "GhostWave Studio memproses audio dan lirik secara lokal dengan penyedia cloud opsional serta mencantumkan proyek asli oleh Muhamad alfian dan Technokers lab.",
   "audit_note": "Pengukuran ini menjelaskan kemiripan dan tidak menjamin penerimaan oleh layanan lain.",
   "select_audio": "Pilih berkas audio terlebih dahulu.",
-  "language_saved": "Bahasa pilihan akan diterapkan setelah aplikasi dimulai ulang.",
   "downloaded": "Folder pembaruan portable sudah siap.",
-  "ticket_sent": "Permintaan bantuan selesai."
+  "ticket_sent": "Permintaan bantuan selesai.",
+  "lyrics_audit": "Bandingkan lirik",
+  "total_characters": "Karakter",
+  "total_lines": "Baris",
+  "word_count": "Kata",
+  "estimated_duration": "Perkiraan durasi",
+  "fingerprint_unavailable": "Audio terlalu pendek untuk perbandingan sidik audio.",
+  "similarity": "Kemiripan sidik audio",
+  "vocal_energy": "Perubahan energi vokal",
+  "phrase_overlap": "Frasa yang sama",
+  "word_similarity": "Kemiripan kata",
+  "syllable_accuracy": "Ketepatan suku kata",
+  "staff": "Petugas bantuan",
+  "you": "Anda",
+  "ticket_closed": "Tiket ini sudah ditutup."
 }

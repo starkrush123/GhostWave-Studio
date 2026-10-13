@@ -110,7 +110,20 @@
   "about_text": "GhostWave Studio processes audio and lyrics locally with optional cloud providers and credits the original project by Muhamad alfian and Technokers lab.",
   "audit_note": "These measurements describe similarity and do not guarantee acceptance by another service.",
   "select_audio": "Choose an audio file first.",
-  "language_saved": "The selected language will apply after restarting.",
   "downloaded": "The portable update folder is ready.",
-  "ticket_sent": "The support request completed."
+  "ticket_sent": "The support request completed.",
+  "lyrics_audit": "Compare lyrics",
+  "total_characters": "Characters",
+  "total_lines": "Lines",
+  "word_count": "Words",
+  "estimated_duration": "Estimated duration",
+  "fingerprint_unavailable": "The audio is too short for a fingerprint comparison.",
+  "similarity": "Fingerprint similarity",
+  "vocal_energy": "Vocal energy change",
+  "phrase_overlap": "Phrase overlap",
+  "word_similarity": "Word similarity",
+  "syllable_accuracy": "Syllable accuracy",
+  "staff": "Support",
+  "you": "You",
+  "ticket_closed": "This ticket is closed."
 }

@@ -144,11 +144,33 @@ int main(int argc,char** argv) {
         }); require(separated.frames()==44117,"Cloud audio format changed");
         auto ticket=create_ticket(profile,"Test title","Test description","Support",true,[&](const HttpRequest& request,const std::atomic_bool*) {
             auto body=Json::parse(request.body); require(body.at("ticket_key").get<std::string>().size()==32,"Ticket credential invalid"); require(body.at("description").get<std::string>().find("Native C++17")!=std::string::npos,"Diagnostics missing"); return response({{"success",true},{"ticket_id","fixture"}},201);
-        }); require(profile.data["user_tickets"][0]==ticket,"Ticket not saved");
+        }); require(profile.data["user_tickets"][0]==ticket&&ticket["description"]=="Test description","Ticket not saved");
         fetch_ticket(ticket,[&](const HttpRequest& request,const std::atomic_bool*) { require(request.url.find("id=fixture&key=")!=std::string::npos,"Ticket authentication changed");return response({{"success",true},{"messages",Json::array()}}); });
         reply_ticket(ticket,"Hello",[&](const HttpRequest& request,const std::atomic_bool*) { require(Json::parse(request.body)["message"]=="Hello","Reply changed");return response({{"success",true}}); });
         rejects([&]{create_ticket(profile,"","Body","Support",false,offline);}); rejects([&]{reply_ticket(ticket,"",offline);});
+        auto closed=ticket; closed["status"]="closed"; rejects([&]{reply_ticket(closed,"Hello",offline);});
         require(diagnostics().find("compatibility_secret")==std::string::npos,"Diagnostics exposed a credential");
+    });
+    test("Replicate authentication and cancellation",[&] {
+        auto profile=defaults; profile.data["cloud_provider"]="replicate"; profile.data["cloud_api_token"]="fixture_token";
+        auto source=read_bytes(ref/"mono.wav"); size_t requests=0;
+        auto separated=cloud_stems(ref/"mono.wav",profile,{},nullptr,[&](const HttpRequest& request,const std::atomic_bool*) {
+            ++requests;
+            if(request.method=="POST") {
+                auto body=Json::parse(request.body); require(body["input"]["two_stems"]=="vocals","Stem selection changed");
+                require(request.headers[0].second=="Bearer fixture_token","Prediction authorization changed");
+                return response({{"id","fixture"},{"status","succeeded"},{"output",{{"instrumental","https://fixture.replicate.delivery/instrumental.wav"},{"vocals","https://example.invalid/vocals.wav"}}}});
+            }
+            if(request.url.find("replicate.delivery")!=std::string::npos) require(request.headers.size()==1&&request.headers[0].second=="Bearer fixture_token","Delivery authorization missing");
+            else require(request.headers.empty(),"Credentials reached an unrelated host");
+            return HttpResponse{200,source,"audio/wav"};
+        }); require(separated.frames()==44117&&requests==3,"Separated stems were not combined");
+        std::atomic_bool cancel{false}; bool remote_cancelled=false;
+        rejects([&]{cloud_stems(ref/"mono.wav",profile,{},&cancel,[&](const HttpRequest& request,const std::atomic_bool* cancellation) {
+            if(request.url.find("/cancel")!=std::string::npos) { require(!cancellation,"Remote cancellation reused a cancelled request"); remote_cancelled=true; return response({{"status","canceled"}}); }
+            cancel=true; return response({{"id","fixture"},{"status","starting"}});
+        });}); require(remote_cancelled,"Remote job was left running after cancellation");
+        cancel=false; rejects([&]{cloud_stems(ref/"mono.wav",profile,{},&cancel,[&](const HttpRequest&,const std::atomic_bool*){return response({{"id","fixture"},{"urls",{{"get","https://example.invalid/steal"}}},{"status","starting"}});});});
     });
     size_t failed=0; for(const auto& result:results) failed+=!result.at("passed").get<bool>();
     Json report={{"tests",results.size()},{"failures",failed},{"byte_parity_required",true},{"results",results}};

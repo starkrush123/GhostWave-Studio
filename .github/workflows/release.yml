@@ -113,6 +113,11 @@ jobs:
       - name: Validate profile rollback
         if: always() && steps.compile.outcome == 'success'
         run: ./ci/check-profile.ps1
+      - name: Validate native accessibility
+        if: always() && steps.compile.outcome == 'success'
+        run: |
+          & "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File ci/ui-smoke.ps1 -PortablePath build/bin/Release
+          if ($LASTEXITCODE -ne 0) { throw 'Native accessibility checks failed.' }
       - name: Package and smoke test
         run: ./ci/package.ps1
       - name: Create draft release

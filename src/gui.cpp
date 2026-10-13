@@ -41,6 +41,22 @@ void read_dialog(wxWindow* parent,const char* title,const std::string& content) 
     copy->Bind(wxEVT_BUTTON,[area](wxCommandEvent&) { if(wxTheClipboard->Open()) { wxTheClipboard->SetData(new wxTextDataObject(area->GetValue())); wxTheClipboard->Close(); } });
     sizer->Add(row,0,wxALIGN_RIGHT); dialog.SetSizer(sizer); area->SetFocus(); dialog.ShowModal();
 }
+std::string audit_report(const Json& report) {
+    std::string content;
+    auto add=[&](const Json& values,const char* key,const char* label,const char* unit="") {
+        if(!values.contains(key)) return;
+        std::string value=values.at(key).is_string()?values.at(key).get<std::string>():values.at(key).dump();
+        auto display=wxString::FromUTF8(value); display.Replace("-",wxString::FromUTF8("−"));
+        content+=t(label).ToStdString(wxConvUTF8)+": "+display.ToStdString(wxConvUTF8)+unit+"\n";
+    };
+    if(report.contains("stats")) for(const auto* key:{"total_characters","total_lines","word_count","estimated_duration"}) add(report["stats"],key,key);
+    if(report.contains("chromaprint_available")&&!report.at("chromaprint_available").get<bool>()) content+=t("fingerprint_unavailable").ToStdString(wxConvUTF8)+"\n";
+    else add(report,"similarity_pct","similarity","%");
+    add(report,"vocal_energy_drop_db","vocal_energy"," dB");
+    add(report,"ngram_overlap_pct","phrase_overlap","%"); add(report,"token_similarity_pct","word_similarity","%"); add(report,"syllable_accuracy_pct","syllable_accuracy","%");
+    if(report.contains("warnings")) for(const auto& warning:report.at("warnings")) content+="\n"+warning.get<std::string>()+"\n";
+    content+="\n"+t("audit_note").ToStdString(wxConvUTF8); return content;
+}
 struct Job {
     std::atomic_bool done{false},cancel{false};
     std::mutex mutex;
@@ -129,7 +145,7 @@ class Frame : public wxFrame {
         const auto cfg=profile;
         if(tabs->GetSelection()==1) {
             const auto original=text(lyrics_input);
-            start([cfg,original](Job& job) { auto result=process_lyrics(original,cfg,&job.cancel); job.output=result.text; job.json=result.audit; job.json["stats"]=result.stats; job.json["warnings"]=result.warnings; },[this](Job& job) { lyrics_output->SetValue(wxString::FromUTF8(job.output)); read_dialog(this,"audit",job.json.dump(2)+"\n\n"+t("audit_note").ToStdString(wxConvUTF8)); });
+            start([cfg,original](Job& job) { auto result=process_lyrics(original,cfg,&job.cancel); job.output=result.text; job.json=result.audit; job.json["stats"]=result.stats; job.json["warnings"]=result.warnings; },[this](Job& job) { lyrics_output->SetValue(wxString::FromUTF8(job.output)); read_dialog(this,"lyrics_audit",audit_report(job.json)); });
             return;
         }
         auto source=fs::u8path(text(input)); if(!fs::is_regular_file(source)) { report_error(t("select_audio").ToStdString(wxConvUTF8)); return; }
@@ -143,7 +159,7 @@ class Frame : public wxFrame {
             if(dialog.ShowModal()!=wxID_OK) return; destination=fs::path(dialog.GetPath().ToStdWstring()); output->SetValue(dialog.GetPath());
         }
         auto options=AudioOptions::preset(preset->GetSelection(),cfg);
-        start([cfg,source,destination,options](Job& job) { auto result=process_audio(source,destination,options,cfg,job.progress(),&job.cancel); if(!result.success) throw std::runtime_error(result.error); job.json=result.audit; },[this](Job& job) { read_dialog(this,"audit",job.json.dump(2)+"\n\n"+t("audit_note").ToStdString(wxConvUTF8)); });
+        start([cfg,source,destination,options](Job& job) { auto result=process_audio(source,destination,options,cfg,job.progress(),&job.cancel); if(!result.success) throw std::runtime_error(result.error); job.json=result.audit; },[this](Job& job) { read_dialog(this,"audit",audit_report(job.json)); });
     }
     void advanced() {
         sync(); wxDialog dialog(this,wxID_ANY,t("advanced"),wxDefaultPosition,wxSize(500,620),wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
@@ -201,7 +217,11 @@ class Frame : public wxFrame {
         } else {
             auto ticket=profile.data["user_tickets"][choose.GetSelection()-1];
             start([ticket](Job& job) { job.json=fetch_ticket(ticket,http,&job.cancel); },[this,ticket](Job& job) {
-                read_dialog(this,"my_tickets",job.json.dump(2));
+                std::string conversation=t("title").ToStdString(wxConvUTF8)+": "+ticket.value("title",std::string())+"\n\n"+job.json.value("description",ticket.value("description",std::string()));
+                for(const auto& comment:job.json.value("comments",Json::array())) conversation+="\n\n"+t(comment.value("is_admin",false)?"staff":"you").ToStdString(wxConvUTF8)+":\n"+comment.value("body",std::string());
+                for(auto& saved:profile.data["user_tickets"]) if(saved.at("ticket_id")==ticket.at("ticket_id")) { saved["status"]=job.json.value("status",std::string("open")); saved["description"]=job.json.value("description",ticket.value("description",std::string())); }
+                profile.save(); read_dialog(this,"my_tickets",conversation);
+                if(job.json.value("status",std::string("open"))=="closed") { wxMessageBox(t("ticket_closed"),t("support"),wxOK,this); return; }
                 wxTextEntryDialog reply(this,t("message"),t("reply")); if(reply.ShowModal()!=wxID_OK||reply.GetValue().empty()) return;
                 auto message=reply.GetValue().ToStdString(wxConvUTF8);
                 start([ticket,message](Job& job) { job.json=reply_ticket(ticket,message,http,&job.cancel); },[this](Job&) { wxMessageBox(t("ticket_sent"),t("support"),wxOK,this); });
@@ -267,7 +287,7 @@ public:
         menu(OpenLyrics,[this]{wxFileDialog dialog(this,t("open_lyrics"),{},{} ,"Text files (*.txt)|*.txt",wxFD_OPEN|wxFD_FILE_MUST_EXIST);if(dialog.ShowModal()==wxID_OK){auto bytes=read_bytes(fs::path(dialog.GetPath().ToStdWstring()),16*1024*1024);lyrics_input->SetValue(wxString::FromUTF8(std::string(bytes.begin(),bytes.end())));tabs->SetSelection(1);}});
         menu(SaveLyrics,[this]{wxFileDialog dialog(this,t("save_lyrics"),{},"lyrics.txt","Text files (*.txt)|*.txt",wxFD_SAVE|wxFD_OVERWRITE_PROMPT);if(dialog.ShowModal()==wxID_OK){auto content=text(lyrics_output);write_atomic(fs::path(dialog.GetPath().ToStdWstring()),Bytes(content.begin(),content.end()));}});
         menu(Slice,[this]{auto source=fs::u8path(text(input));wxDirDialog dialog(this,t("slice"));if(dialog.ShowModal()!=wxID_OK)return;auto directory=fs::path(dialog.GetPath().ToStdWstring());double duration=profile.data["slicer_chunk_duration"];start([source,directory,duration](Job& job){for(const auto& file:slice_audio(source,directory,duration,&job.cancel))job.output+=file.u8string()+"\n";},[this](Job& job){read_dialog(this,"slice",job.output);});});
-        menu(Audit,[this]{auto source=fs::u8path(text(input)),destination=fs::u8path(text(output));start([source,destination](Job& job){job.json=audit_audio(source,destination,&job.cancel);},[this](Job& job){read_dialog(this,"audit",job.json.dump(2)+"\n\n"+t("audit_note").ToStdString(wxConvUTF8));});});
+        menu(Audit,[this]{auto source=fs::u8path(text(input)),destination=fs::u8path(text(output));start([source,destination](Job& job){job.json=audit_audio(source,destination,&job.cancel);},[this](Job& job){read_dialog(this,"audit",audit_report(job.json));});});
         input->SetFocus();
         if(profile.recovered) wxMessageBox(t("recovered"),t("import_profile"),wxOK|wxICON_INFORMATION,this);
     }
